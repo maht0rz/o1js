@@ -249,7 +249,6 @@ export { FetchedAccount } from './lib/mina/v1/graphql.js';
 export { Actions } from './lib/mina/v1/account-update.js';
 
 export { StateHash as StateHashBase58, TokenId as TokenIdBase58, ReceiptChainHash as ReceiptChainHashBase58, LedgerHash as LedgerHashBase58 } from './lib/mina/v1/base58-encodings.js';
-export { PrefixedMerkleTree, PrefixedMerkleWitness } from './lib/provable/prefixed-merkle-tree.js';
 
 export { prefixToField } from "./bindings/lib/binable.js";
 export { CircuitValue, arrayProp } from './lib/provable/types/circuit-value.js';
