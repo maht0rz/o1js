@@ -152,7 +152,7 @@ namespace Experimental {
     export type MinaProgramMethodReturn<
       State extends V2_.StateLayout = 'GenericState',
       Event = Field[],
-      Action = Field[]
+      Action = Field[],
     > = V2_.MinaProgramMethodReturn<State, Event, Action>;
     export type StateDefinition<State extends V2_.StateLayout> = V2_.StateDefinition<State>;
     export type ZkappCommandAuthorizationEnvironment = V2_.ZkappCommandAuthorizationEnvironment;
@@ -160,7 +160,7 @@ namespace Experimental {
       State extends StateLayout,
       Event,
       Action,
-      MethodPrivateInputs extends { [key: string]: V2_.ProvableTuple }
+      MethodPrivateInputs extends { [key: string]: V2_.ProvableTuple },
     > = V2_.MinaProgram<State, Event, Action, MethodPrivateInputs>;
     export type DynamicProvable<P> = V2_.DynamicProvable<P>;
   }
@@ -212,7 +212,7 @@ namespace Experimental {
   export class BatchReducer<
     ActionType extends Actionable<any>,
     BatchSize extends number = number,
-    Action = InferProvable<ActionType>
+    Action = InferProvable<ActionType>,
   > extends BatchReducer_.BatchReducer<ActionType, BatchSize, Action> {}
 
   /**
@@ -226,3 +226,14 @@ Error.stackTraceLimit = 100000;
 
 // export parts of the low-level bindings interface for advanced users
 export * as Core from './bindings/index.js';
+
+export { parseFetchedAccount } from './lib/mina/v1/account.js';
+export type { AuthRequired } from './bindings/mina-transaction/v1/transaction-leaves-json.js';
+export { FetchedAccount } from './lib/mina/v1/graphql.js';
+export { Actions } from './lib/mina/v1/account-update.js';
+
+export { StateHash as StateHashBase58, TokenId as TokenIdBase58, ReceiptChainHash as ReceiptChainHashBase58, LedgerHash as LedgerHashBase58 } from './lib/mina/v1/base58-encodings.js';
+export { PrefixedMerkleTree, PrefixedMerkleWitness } from './lib/provable/prefixed-merkle-tree.js';
+
+export { prefixToField } from "./bindings/lib/binable.js";
+export { CircuitValue, arrayProp } from './lib/provable/types/circuit-value.js';

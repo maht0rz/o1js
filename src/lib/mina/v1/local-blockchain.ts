@@ -37,6 +37,7 @@ import {
   verifyAccountUpdate,
 } from './transaction-validation.js';
 import { prettifyStacktrace } from '../../util/errors.js';
+import { NetworkValue } from './precondition.js';
 
 export { LocalBlockchain, TestPublicKey };
 
@@ -115,6 +116,9 @@ async function LocalBlockchain({ proofsEnabled = true, enforceTransactionLimits 
         throw new Error(reportGetAccountError(publicKey.toBase58(), TokenId.toBase58(tokenId)));
       }
       return Types.Account.fromJSON(accountJson);
+    },
+    setNetworkState(newNetworkState: NetworkValue) {
+      networkState = newNetworkState;
     },
     getNetworkState() {
       return networkState;
