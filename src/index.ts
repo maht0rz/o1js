@@ -242,3 +242,14 @@ Error.stackTraceLimit = 100000;
 
 // export parts of the low-level bindings interface for advanced users
 export * as Core from './bindings/index.js';
+
+export { parseFetchedAccount } from './lib/mina/v1/account.js';
+export type { AuthRequired } from './bindings/mina-transaction/v1/transaction-leaves-json.js';
+export { FetchedAccount } from './lib/mina/v1/graphql.js';
+export { Actions } from './lib/mina/v1/account-update.js';
+
+export { StateHash as StateHashBase58, TokenId as TokenIdBase58, ReceiptChainHash as ReceiptChainHashBase58, LedgerHash as LedgerHashBase58 } from './lib/mina/v1/base58-encodings.js';
+export { PrefixedMerkleTree, PrefixedMerkleWitness } from './lib/provable/prefixed-merkle-tree.js';
+
+export { prefixToField } from "./bindings/lib/binable.js";
+export { CircuitValue, arrayProp } from './lib/provable/types/circuit-value.js';
