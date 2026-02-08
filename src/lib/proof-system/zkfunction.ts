@@ -216,16 +216,16 @@ class KimchiProof {
     };
   } 
 
-  static fromJSON(json: KimchiJsonProof): KimchiProof {
-    const bytes = Uint8Array.from(Buffer.from(json.proof, 'base64'));
-    const rustProof = wasm.WasmFpProverProof.deserialize(bytes);
-    const rustConversion = getRustConversion(wasm);
-    const proofWithEvalsMl = Snarky.circuit.proofFromBackendProofEvals(
-      rustConversion.fp.proofFromRust(rustProof)
-    );
-    const publicInputFields = json.publicInputFields.map((s) => Field(s));
-    return new KimchiProof(proofWithEvalsMl, publicInputFields);
-  } 
+  // static fromJSON(json: KimchiJsonProof): KimchiProof {
+  //   const bytes = Uint8Array.from(Buffer.from(json.proof, 'base64'));
+  //   // const rustProof = wasm.WasmFpProverProof.deserialize(bytes);
+  //   const rustConversion = getRustConversion(wasm);
+  //   const proofWithEvalsMl = Snarky.circuit.proofFromBackendProofEvals(
+  //     rustConversion.fp.proofFromRust(rustProof)
+  //   );
+  //   const publicInputFields = json.publicInputFields.map((s) => Field(s));
+  //   return new KimchiProof(proofWithEvalsMl, publicInputFields);
+  // } 
  
   /**
    * Verifies this proof using the provided verification key.
