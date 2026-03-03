@@ -251,7 +251,9 @@ export {
 
 export { Pickles } from './bindings.js';
 export { prefixToField } from './bindings/lib/binable.js';
+export { AuthRequired } from './bindings/mina-transaction/v1/transaction-leaves-bigint.js';
 export { parseFetchedAccount } from './lib/mina/v1/account.js';
+export { FetchedAccount } from './lib/mina/v1/graphql.js';
 export { ZkappUri } from './lib/mina/v2/core.js';
 export { inCircuitVkHash } from './lib/proof-system/zkprogram.js';
 export { arrayProp, CircuitValue } from './lib/provable/types/circuit-value.js';
