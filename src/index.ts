@@ -249,3 +249,16 @@ Error.stackTraceLimit = 100000;
 
 // export parts of the low-level bindings interface for advanced users
 export * as Core from './bindings/index.js';
+
+export {
+  LedgerHash as LedgerHashBase58,
+  ReceiptChainHash as ReceiptChainHashBase58,
+  StateHash as StateHashBase58,
+  TokenId as TokenIdBase58,
+} from './lib/mina/v1/base58-encodings.js';
+
+export { Pickles } from './bindings.js';
+export { prefixToField } from './bindings/lib/binable.js';
+export { ZkappUri } from './lib/mina/v2/core.js';
+export { inCircuitVkHash } from './lib/proof-system/zkprogram.js';
+export { arrayProp, CircuitValue } from './lib/provable/types/circuit-value.js';
