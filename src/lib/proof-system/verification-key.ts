@@ -1,5 +1,6 @@
 import { initializeBindings, Pickles } from '../../bindings.js';
 import { synchronousRunners } from '../provable/core/provable-context.js';
+import { Provable } from '../provable/provable.js';
 import { provable } from '../provable/types/provable-derivers.js';
 import { Struct } from '../provable/types/struct.js';
 import { Field } from '../provable/wrapped.js';
@@ -27,6 +28,18 @@ class VerificationKey extends Struct({
       ...RAW_VERIFICATION_KEY,
       hash: Field(RAW_VERIFICATION_KEY.hash),
     });
+  }
+
+  public static async fromData(data: string): Promise<VerificationKey> {
+    let hash: Field;
+    await Provable.runAndCheck(async () => {
+      let vk = Pickles.sideLoaded.vkToCircuit(() => data);
+      let hash_ = inCircuitVkHash(vk);
+      Provable.asProver(() => {
+        hash = hash_.toConstant();
+      });
+    });
+    return new VerificationKey({ data, hash: hash! });
   }
 
   static async checkValidity(key: VerificationKey): Promise<boolean> {
