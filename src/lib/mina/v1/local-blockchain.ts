@@ -17,6 +17,7 @@ import {
   type ActionStates,
   type FeePayerSpec,
 } from './mina-instance.js';
+import { NetworkValue } from './precondition.js';
 import { SimpleLedger } from './transaction-logic/ledger.js';
 import {
   defaultNetworkState,
@@ -120,6 +121,9 @@ async function LocalBlockchain({ proofsEnabled = true, enforceTransactionLimits 
     },
     getNetworkState() {
       return networkState;
+    },
+    setNetworkState(newNetworkState: NetworkValue) {
+      networkState = newNetworkState;
     },
     sendTransaction(txn: Transaction<boolean, boolean>): PendingTransactionPromise {
       return toPendingTransactionPromise(async () => {
