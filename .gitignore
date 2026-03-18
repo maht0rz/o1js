@@ -14,5 +14,5 @@ src/config.mlh
 .rustup
 result
 # precompiled bindings
-src/bindings/compiled
+# src/bindings/compiled
 .bindings_download
