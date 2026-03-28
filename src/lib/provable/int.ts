@@ -22,7 +22,399 @@ import { bytesToWord, wordToBytes } from './gadgets/bit-slices.js';
 import { BinableFp } from '../../mina-signer/src/field-bigint.js';
 
 // external API
-export { UInt8, UInt32, UInt64, Int64, Sign };
+export { UInt8, UInt32, UInt64, UInt128, Int64, Sign };
+
+/**
+ * A 128 bit unsigned integer with values ranging from 0 to 340,282,366,920,938,463,463,374,607,431,768,211,455.
+ */
+class UInt128 extends CircuitValue {
+  @prop value: Field;
+  static NUM_BITS = 128;
+
+  /**
+   * Create a {@link UInt128}.
+   * The max value of a {@link UInt128} is `2^128 - 1 = UInt128.MAXINT()`.
+   *
+   * **Warning**: Cannot overflow, an error is thrown if the result is greater than UInt128.MAXINT()
+   */
+  constructor(x: UInt128 | UInt64 | UInt32 | FieldVar | number | string | bigint) {
+    if (x instanceof UInt128 || x instanceof UInt64 || x instanceof UInt32) x = x.value.value;
+    let value = Field(x);
+    super(value);
+    // check the range if the argument is a constant
+    UInt128.checkConstant(value);
+  }
+
+  static Unsafe = {
+    /**
+     * Create a {@link UInt128} from a {@link Field} without constraining its range.
+     *
+     * **Warning**: This is unsafe, because it does not prove that the input {@link Field} actually fits in 128 bits.\
+     * Only use this if you know what you are doing, otherwise use the safe {@link UInt128.from}.
+     */
+    fromField(x: Field) {
+      return new UInt128(x.value);
+    },
+  };
+
+  /**
+   * Static method to create a {@link UInt128} with value `0`.
+   */
+  static get zero() {
+    return new UInt128(0);
+  }
+
+  /**
+   * Static method to create a {@link UInt128} with value `1`.
+   */
+  static get one() {
+    return new UInt128(1);
+  }
+
+  /**
+   * Turns the {@link UInt128} into a string.
+   */
+  toString() {
+    return this.value.toString();
+  }
+
+  /**
+   * Turns the {@link UInt128} into a BigInt.
+   */
+  toBigInt() {
+    return this.value.toBigInt();
+  }
+
+  /**
+   * Turns the {@link UInt128} into a {@link UInt64}, asserting that it fits in 64 bits.
+   */
+  toUInt64() {
+    let uint64 = new UInt64(this.value.value);
+    UInt64.check(uint64);
+    return uint64;
+  }
+
+  /**
+   * Turns the {@link UInt128} into a {@link UInt64}, clamping to the 64 bits range if it's too large.
+   * ```ts
+   * UInt128.from('18446744073709551616').toUInt64Clamped().toString(); // "18446744073709551615"
+   * ```
+   */
+  toUInt64Clamped() {
+    let max = (1n << 64n) - 1n;
+    let field = Provable.if(this.greaterThan(UInt128.from(max)), Field.from(max), this.value);
+    return UInt64.Unsafe.fromField(field);
+  }
+
+  static check(x: UInt128) {
+    RangeCheck.rangeCheckN(UInt128.NUM_BITS, x.value);
+  }
+
+  static toInput(x: UInt128): HashInput {
+    return { packed: [[x.value, 128]] };
+  }
+
+  /**
+   * Encodes this structure into a JSON-like object.
+   */
+  static toJSON(x: UInt128) {
+    return x.value.toString();
+  }
+
+  /**
+   * Decodes a JSON-like object into this structure.
+   */
+  static fromJSON<T extends AnyConstructor>(x: string): InstanceType<T> {
+    return this.from(x) as any;
+  }
+
+  private static checkConstant(x: Field) {
+    if (!x.isConstant()) return x;
+    let xBig = x.toBigInt();
+    if (xBig < 0n || xBig >= 1n << BigInt(this.NUM_BITS)) {
+      throw Error(`UInt128: Expected number between 0 and 2^128 - 1, got ${xBig}`);
+    }
+    return x;
+  }
+
+  /**
+   * Creates a new {@link UInt128}.
+   */
+  static from(x: UInt128 | UInt64 | UInt32 | number | string | bigint) {
+    if (x instanceof UInt128) return x;
+    return new this(x);
+  }
+
+  /**
+   * Creates a {@link UInt128} with a value of 340,282,366,920,938,463,463,374,607,431,768,211,455.
+   */
+  static MAXINT() {
+    return new UInt128((1n << 128n) - 1n);
+  }
+
+  /**
+   * Integer division with remainder.
+   *
+   * `x.divMod(y)` returns the quotient and the remainder.
+   */
+  divMod(y: UInt128 | number | string) {
+    let x = this.value;
+    let y_ = UInt128.from(y).value;
+
+    if (this.value.isConstant() && y_.isConstant()) {
+      let xn = x.toBigInt();
+      let yn = y_.toBigInt();
+      let q = xn / yn;
+      let r = xn - q * yn;
+      return {
+        quotient: new UInt128(q),
+        rest: new UInt128(r),
+      };
+    }
+
+    y_ = y_.seal();
+
+    let q = Provable.witness(Field, () => new Field(x.toBigInt() / y_.toBigInt()));
+
+    RangeCheck.rangeCheckN(UInt128.NUM_BITS, q);
+
+    // TODO: Could be a bit more efficient
+    let r = x.sub(q.mul(y_)).seal();
+    RangeCheck.rangeCheckN(UInt128.NUM_BITS, r);
+
+    let r_ = new UInt128(r.value);
+    let q_ = new UInt128(q.value);
+
+    r_.assertLessThan(new UInt128(y_.value));
+
+    return { quotient: q_, rest: r_ };
+  }
+
+  /**
+   * Integer division.
+   *
+   * `x.div(y)` returns the floor of `x / y`, that is, the greatest
+   * `z` such that `z * y <= x`.
+   */
+  div(y: UInt128 | number) {
+    return this.divMod(y).quotient;
+  }
+
+  /**
+   * Integer remainder.
+   *
+   * `x.mod(y)` returns the value `z` such that `0 <= z < y` and
+   * `x - z` is divisible by `y`.
+   */
+  mod(y: UInt128 | number) {
+    return this.divMod(y).rest;
+  }
+
+  /**
+   * Multiplication with overflow checking.
+   */
+  mul(y: UInt128 | number) {
+    let z = this.value.mul(UInt128.from(y).value);
+    RangeCheck.rangeCheckN(UInt128.NUM_BITS, z);
+    return new UInt128(z.value);
+  }
+
+  /**
+   * Addition with overflow checking.
+   */
+  add(y: UInt128 | number) {
+    let z = this.value.add(UInt128.from(y).value);
+    RangeCheck.rangeCheckN(UInt128.NUM_BITS, z);
+    return new UInt128(z.value);
+  }
+
+  /**
+   * Subtraction with underflow checking.
+   */
+  sub(y: UInt128 | number) {
+    let z = this.value.sub(UInt128.from(y).value);
+    RangeCheck.rangeCheckN(UInt128.NUM_BITS, z);
+    return new UInt128(z.value);
+  }
+
+  /**
+   * Bitwise XOR gadget on {@link Field} elements.
+   */
+  xor(x: UInt128) {
+    return new UInt128(Bitwise.xor(this.value, x.value, UInt128.NUM_BITS).value);
+  }
+
+  /**
+   * Bitwise NOT gate on {@link Field} elements.
+   */
+  not() {
+    return new UInt128(Bitwise.not(this.value, UInt128.NUM_BITS, false).value);
+  }
+
+  /**
+   * Bitwise AND gadget on {@link UInt128} elements.
+   */
+  and(x: UInt128) {
+    return new UInt128(Bitwise.and(this.value, x.value, UInt128.NUM_BITS).value);
+  }
+
+  /**
+   * Bitwise OR gadget on {@link UInt128} elements.
+   */
+  or(x: UInt128) {
+    return new UInt128(Bitwise.or(this.value, x.value, UInt128.NUM_BITS).value);
+  }
+
+  /**
+   * Checks if a {@link UInt128} is less than or equal to another one.
+   */
+  lessThanOrEqual(y: UInt128) {
+    if (this.value.isConstant() && y.value.isConstant()) {
+      return Bool(this.value.toBigInt() <= y.value.toBigInt());
+    }
+    return lessThanOrEqualGeneric(this.value, y.value, 1n << 128n, (v) =>
+      RangeCheck.rangeCheckN(UInt128.NUM_BITS, v)
+    );
+  }
+
+  /**
+   * Asserts that a {@link UInt128} is less than or equal to another one.
+   */
+  assertLessThanOrEqual(y: UInt128, message?: string) {
+    if (this.value.isConstant() && y.value.isConstant()) {
+      let [x0, y0] = [this.value.toBigInt(), y.value.toBigInt()];
+      return assert(x0 <= y0, message ?? `UInt128.assertLessThanOrEqual: expected ${x0} <= ${y0}`);
+    }
+    assertLessThanOrEqualGeneric(this.value, y.value, (v) =>
+      RangeCheck.rangeCheckN(UInt128.NUM_BITS, v, message)
+    );
+  }
+
+  /**
+   * Checks if a {@link UInt128} is less than another one.
+   */
+  lessThan(y: UInt128) {
+    if (this.value.isConstant() && y.value.isConstant()) {
+      return Bool(this.value.toBigInt() < y.value.toBigInt());
+    }
+    return lessThanGeneric(this.value, y.value, 1n << 128n, (v) =>
+      RangeCheck.rangeCheckN(UInt128.NUM_BITS, v)
+    );
+  }
+
+  /**
+   * Asserts that a {@link UInt128} is less than another one.
+   */
+  assertLessThan(y: UInt128, message?: string) {
+    if (this.value.isConstant() && y.value.isConstant()) {
+      let [x0, y0] = [this.value.toBigInt(), y.value.toBigInt()];
+      return assert(x0 < y0, message ?? `UInt128.assertLessThan: expected ${x0} < ${y0}`);
+    }
+    assertLessThanGeneric(this.value, y.value, (v) =>
+      RangeCheck.rangeCheckN(UInt128.NUM_BITS, v, message)
+    );
+  }
+
+  /**
+   * Checks if a {@link UInt128} is greater than another one.
+   */
+  greaterThan(y: UInt128) {
+    return y.lessThan(this);
+  }
+
+  /**
+   * Asserts that a {@link UInt128} is greater than another one.
+   */
+  assertGreaterThan(y: UInt128, message?: string) {
+    y.assertLessThan(this, message);
+  }
+
+  /**
+   * Checks if a {@link UInt128} is greater than or equal to another one.
+   */
+  greaterThanOrEqual(y: UInt128) {
+    return y.lessThanOrEqual(this);
+  }
+
+  /**
+   * Asserts that a {@link UInt128} is greater than or equal to another one.
+   */
+  assertGreaterThanOrEqual(y: UInt128, message?: string) {
+    y.assertLessThanOrEqual(this, message);
+  }
+
+  static toValue(x: UInt128) {
+    return x.value.toBigInt();
+  }
+
+  static fromValue<T extends AnyConstructor>(x: number | bigint | UInt128): InstanceType<T> {
+    return UInt128.from(x) as any;
+  }
+
+  /**
+   * Split a UInt128 into 16 UInt8s, in little-endian order.
+   */
+  toBytes() {
+    return TupleN.fromArray(16, wordToBytes(this.value, 16));
+  }
+
+  /**
+   * Split a UInt128 into 16 UInt8s, in big-endian order.
+   */
+  toBytesBE() {
+    return TupleN.fromArray(16, wordToBytes(this.value, 16).reverse());
+  }
+
+  /**
+   * Combine 16 UInt8s into a UInt128, in little-endian order.
+   */
+  static fromBytes(bytes: UInt8[]): UInt128 {
+    assert(bytes.length === 16, '16 bytes needed to create a uint128');
+    return UInt128.Unsafe.fromField(bytesToWord(bytes));
+  }
+
+  /**
+   * Combine 16 UInt8s into a UInt128, in big-endian order.
+   */
+  static fromBytesBE(bytes: UInt8[]): UInt128 {
+    return UInt128.fromBytes([...bytes].reverse());
+  }
+
+  /**
+   * Returns an array of {@link Bool} elements representing little endian binary representation of this {@link UInt128} element.
+   *
+   * If you use the optional `length` argument, proves that the UInt128 element fits in `length` bits.
+   * The `length` has to be between 0 and 128 and the method throws if it isn't.
+   *
+   * **Warning**: The cost of this operation in a zk proof depends on the `length` you specify,
+   * which by default is 128 bits. Prefer to pass a smaller `length` if possible.
+   *
+   * @param length - the number of bits to fit the element. If the element does not fit in `length` bits, the functions throws an error.
+   */
+  toBits(length: number = 128) {
+    checkBitLength('UInt128.toBits()', length, 128);
+    if (this.isConstant()) {
+      let bits = BinableFp.toBits(this.toBigInt());
+      if (bits.slice(length).some((bit) => bit))
+        throw Error(`UInt128.toBits(): ${this} does not fit in ${length} bits`);
+      return bits.slice(0, length).map((b) => new Bool(b));
+    }
+    return this.value.toBits(length);
+  }
+
+  /**
+   * Convert a bit array into a {@link UInt128} element using little endian binary representation.
+   *
+   * The method throws if the given bits do not fit in a single UInt128 element. In this case, no more than 128 bits are allowed.
+   *
+   * @param bits - An array of {@link Bool} or `boolean` type.
+   */
+  static fromBits(bits: (Bool | boolean)[]) {
+    const length = bits.length;
+    checkBitLength('UInt128.fromBits()', length, 128);
+    return UInt128.Unsafe.fromField(Field.fromBits(bits));
+  }
+}
 
 /**
  * A 64 bit unsigned integer with values ranging from 0 to 18,446,744,073,709,551,615.
@@ -82,6 +474,14 @@ class UInt64 extends CircuitValue {
    */
   toBigInt() {
     return this.value.toBigInt();
+  }
+
+  /**
+   * Turns the {@link UInt64} into a {@link UInt128}.
+   */
+  toUInt128() {
+    // this is safe, because the UInt64 range is included in the UInt128 range
+    return new UInt128(this.value.value);
   }
 
   /**
