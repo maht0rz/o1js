@@ -39,7 +39,7 @@ export { Circuit, circuitMain, Keypair, public_ } from './lib/proof-system/circu
 export { DynamicArray } from './lib/provable/dynamic-array.js';
 export { Gadgets } from './lib/provable/gadgets/gadgets.js';
 export { RuntimeTable } from './lib/provable/gadgets/runtime-table.js';
-export { Int64, Sign, UInt32, UInt64, UInt8 } from './lib/provable/int.js';
+export { Int64, Sign, UInt32, UInt64, UInt128, UInt8 } from './lib/provable/int.js';
 export { Hashed, Packed } from './lib/provable/packed.js';
 export { Provable } from './lib/provable/provable.js';
 export { provable, provablePure } from './lib/provable/types/provable-derivers.js';
