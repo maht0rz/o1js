@@ -1,6 +1,6 @@
 .DS_Store
 node_modules
-dist/
+# dist/
 o1labs*.tgz
 tests/report/
 tests/test-artifacts/
