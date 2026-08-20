@@ -1,14 +1,15 @@
+import { Test } from '../../../bindings.js';
 import { PublicKey } from '../../provable/crypto/signature.js';
 import { UInt32, UInt64 } from '../../provable/int.js';
 import { Provable } from '../../provable/provable.js';
 import { assertPromise } from '../../util/assert.js';
 import { AccountUpdate, AccountUpdateLayout, TokenId, ZkappCommand, addMissingProofs, addMissingSignatures, } from './account-update.js';
 import * as Fetch from './fetch.js';
-import { sendZkappQuery } from './graphql.js';
+import { sendZkappQuery, } from './graphql.js';
 import { activeInstance } from './mina-instance.js';
 import { assertPreconditionInvariants } from './precondition.js';
 import { currentTransaction } from './transaction-context.js';
-import { getTotalTimeRequired } from './transaction-validation.js';
+import { getSegmentsAndEvents } from './transaction-validation.js';
 export { Transaction, createIncludedTransaction, createRejectedTransaction, createTransaction, getAccount, newTransaction, sendTransaction, toPendingTransactionPromise, toTransactionPromise, transaction, };
 var Transaction;
 (function (Transaction) {
@@ -33,6 +34,17 @@ var Transaction;
         return newTransaction(transaction, activeInstance.proofsEnabled);
     }
     Transaction.fromJSON = fromJSON;
+    /**
+     * Computes the hash of a transaction represented as a JSON object or JSON string.
+     * This hash serves as a unique identifier for the transaction and is essential for tracking
+     * and verifying transactions on the Mina blockchain.
+     */
+    async function hash(json) {
+        let mlTest = await Test();
+        const hash = mlTest.transactionHash.hashZkAppCommand(JSON.stringify(ZkappCommand.toJSON(ZkappCommand.fromJSON(json))));
+        return hash;
+    }
+    Transaction.hash = hash;
 })(Transaction || (Transaction = {}));
 function toTransactionPromise(getPromise) {
     const pending = getPromise().then();
@@ -186,7 +198,7 @@ function newTransaction(transaction, proofsEnabled) {
             return pendingTransaction;
         },
         setFeePerAccountUpdate(newFeePerAccountUpdate) {
-            let { totalAccountUpdates } = getTotalTimeRequired(transaction.accountUpdates);
+            let { totalAccountUpdates } = getSegmentsAndEvents(transaction.accountUpdates);
             return this.setFee(new UInt64(Math.round(totalAccountUpdates * newFeePerAccountUpdate)));
         },
         setFee(newFee) {
@@ -240,7 +252,35 @@ function createRejectedTransaction({ transaction, data, toJSON, toPretty, hash }
         data,
     };
 }
-function createIncludedTransaction({ transaction, data, toJSON, toPretty, hash, }) {
+function createIncludedTransaction({ transaction, data, toJSON, toPretty, hash }, inclusionBlockHeight) {
+    const safeGetDepth = async (options) => {
+        return Fetch.fetchTransactionDepth(hash, options);
+    };
+    const getDepth = async (options) => {
+        const result = await safeGetDepth(options);
+        if (result === null) {
+            throw Error(`Transaction ${hash} not found in recent blocks. It may have been pruned from the transition frontier or not yet included.`);
+        }
+        return result;
+    };
+    const waitForFinality = async (options) => {
+        const finalityThreshold = options?.finalityThreshold ?? 15;
+        const interval = options?.interval ?? 120000;
+        const maxAttempts = options?.maxAttempts ?? 45;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const info = await safeGetDepth({ finalityThreshold });
+            if (info) {
+                options?.onProgress?.(info);
+                if (info.isFinalized) {
+                    return info;
+                }
+            }
+            if (attempt < maxAttempts - 1) {
+                await new Promise((resolve) => setTimeout(resolve, interval));
+            }
+        }
+        throw Error(`Transaction ${hash} did not reach finality after ${maxAttempts} attempts (threshold: ${finalityThreshold} blocks).`);
+    };
     return {
         status: 'included',
         transaction,
@@ -248,6 +288,10 @@ function createIncludedTransaction({ transaction, data, toJSON, toPretty, hash, 
         toPretty,
         hash,
         data,
+        inclusionBlockHeight,
+        getDepth,
+        safeGetDepth,
+        waitForFinality,
     };
 }
 //# sourceMappingURL=transaction.js.map

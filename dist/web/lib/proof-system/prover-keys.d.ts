@@ -1,16 +1,9 @@
-/**
- * This file provides helpers to
- * - encode and decode all 4 kinds of snark keys to/from bytes
- * - create a header which is passed to the `Cache` so that it can figure out where and if to read from cache
- *
- * The inputs are `SnarkKeyHeader` and `SnarkKey`, which are OCaml tagged enums defined in pickles_bindings.ml
- */
-import { WasmPastaFpPlonkIndex, WasmPastaFqPlonkIndex } from '../../bindings/compiled/node_bindings/plonk_wasm.cjs';
+import { WasmPastaFpPlonkIndex, WasmPastaFqPlonkIndex } from '../../bindings/compiled/node_bindings/kimchi_wasm.cjs';
 import { VerifierIndex } from '../../bindings/crypto/bindings/kimchi-types.js';
 import { MlString } from '../ml/base.js';
 import { CacheHeader } from './cache.js';
 import type { MethodInterface } from './zkprogram.js';
-export { parseHeader, encodeProverKey, decodeProverKey, SnarkKeyHeader, SnarkKey };
+export { SnarkKey, SnarkKeyHeader, decodeProverKey, encodeProverKey, parseHeader };
 export type { MlWrapVerificationKey };
 declare enum KeyType {
     StepProvingKey = 0,

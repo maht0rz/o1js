@@ -128,16 +128,12 @@ var KimchiGateType;
     KimchiGateType[KimchiGateType["EndoMul"] = 5] = "EndoMul";
     KimchiGateType[KimchiGateType["EndoMulScalar"] = 6] = "EndoMulScalar";
     KimchiGateType[KimchiGateType["Lookup"] = 7] = "Lookup";
-    KimchiGateType[KimchiGateType["CairoClaim"] = 8] = "CairoClaim";
-    KimchiGateType[KimchiGateType["CairoInstruction"] = 9] = "CairoInstruction";
-    KimchiGateType[KimchiGateType["CairoFlags"] = 10] = "CairoFlags";
-    KimchiGateType[KimchiGateType["CairoTransition"] = 11] = "CairoTransition";
-    KimchiGateType[KimchiGateType["RangeCheck0"] = 12] = "RangeCheck0";
-    KimchiGateType[KimchiGateType["RangeCheck1"] = 13] = "RangeCheck1";
-    KimchiGateType[KimchiGateType["ForeignFieldAdd"] = 14] = "ForeignFieldAdd";
-    KimchiGateType[KimchiGateType["ForeignFieldMul"] = 15] = "ForeignFieldMul";
-    KimchiGateType[KimchiGateType["Xor16"] = 16] = "Xor16";
-    KimchiGateType[KimchiGateType["Rot64"] = 17] = "Rot64";
+    KimchiGateType[KimchiGateType["RangeCheck0"] = 8] = "RangeCheck0";
+    KimchiGateType[KimchiGateType["RangeCheck1"] = 9] = "RangeCheck1";
+    KimchiGateType[KimchiGateType["ForeignFieldAdd"] = 10] = "ForeignFieldAdd";
+    KimchiGateType[KimchiGateType["ForeignFieldMul"] = 11] = "ForeignFieldMul";
+    KimchiGateType[KimchiGateType["Xor16"] = 12] = "Xor16";
+    KimchiGateType[KimchiGateType["Rot64"] = 13] = "Rot64";
 })(KimchiGateType || (KimchiGateType = {}));
 // helper
 function fieldVar(x) {

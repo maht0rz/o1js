@@ -98,7 +98,17 @@ type InferMethodType<Config extends ConfigBaseType> = {
  * });
  * ```
  *
- * @param config The configuration of the program, describing the type of the public input and public output, as well as defining the methods which can be executed provably.
+ * @param config The configuration of the program, describing the type of the public input and
+ *   public output, as well as defining the methods which can be executed provably.
+ * @param config.numChunks Optional number of chunks to split each method's circuit into. Use a
+ *   value greater than 1 (1 < numChunks <= 4) if a method exceeds the single-circuit row limit
+ *   of 2^16; default is 1. Up to 8 chunks are supported if the degree of the constraints of the
+ *   underlying circuit is low enough (e.g. generic gates) so the wrap domain can still be 2.
+ * @param config.overrideWrapDomain Optional override for the wrap circuit domain (0 | 1 | 2).
+ *   Defaults to a value derived from the maximum proofs verified; set only if you need to force
+ *   a specific domain for chunking. In general, uses 0 if no chunking, 1 for 2 chunks, and 2 for
+ *   4 chunks. When otherwise needed, the logs guide you through the right choice. If the constraints
+ *   are simple enough (e.g. generic gates), 8 chunks may also use domain 2.
  * @returns an object that can be used to compile, prove, and verify the program.
  */
 declare function ZkProgram<Config extends ConfigBaseType, _ extends unknown = unknown>(config: Config & {

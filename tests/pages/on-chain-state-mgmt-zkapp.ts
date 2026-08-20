@@ -44,6 +44,9 @@ export class OnChainStateMgmtZkAppPage {
 
   async checkO1jsInitialization() {
     await expect(this.eventsContainer).toContainText('o1js initialized after');
+    await expect(this.compileButton).toBeEnabled();
+    await expect(this.deployButton).toBeEnabled();
+    await expect(this.updateButton).toBeEnabled();
   }
 
   async checkZkProgramCompilation() {
@@ -75,7 +78,7 @@ export class OnChainStateMgmtZkAppPage {
   }
 
   async checkZkAppStateUpdateFailureByUnknownAccount() {
-    await expect(this.eventsContainer).toContainText('State update failure');
+    await expect(this.eventsContainer).toContainText('State Update failure');
     await expect(this.eventsContainer).toContainText('Could not find account for public key');
     await expect(this.zkAppStateContainer).toHaveText('No data available yet.');
   }

@@ -1,5 +1,5 @@
-import type { WasmFpOracles, WasmFqOracles } from '../../compiled/node_bindings/plonk_wasm.cjs';
-import type * as wasmNamespace from '../../compiled/node_bindings/plonk_wasm.cjs';
+import type { WasmFpOracles, WasmFqOracles } from '../../compiled/node_bindings/kimchi_wasm.cjs';
+import type * as wasmNamespace from '../../compiled/node_bindings/kimchi_wasm.cjs';
 import { Oracles } from './kimchi-types.js';
 export { oraclesConversion };
 type wasm = typeof wasmNamespace;

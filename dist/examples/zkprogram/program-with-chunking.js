@@ -1,0 +1,39 @@
+import { Cache, Field, Gadgets, setBackend, ZkProgram } from 'o1js';
+import { Performance } from '../../lib/testing/perf-regression.js';
+setBackend('native');
+let MyProgram = ZkProgram({
+    numChunks: 2,
+    overrideWrapDomain: 1,
+    name: 'example-with-chunking',
+    publicOutput: Field,
+    methods: {
+        baseCase: {
+            privateInputs: [Field],
+            async method(input) {
+                for (let i = 0; i < 1 << 16; i++) {
+                    Gadgets.rangeCheck64(Field(input).add(Field(i)));
+                }
+                // The above generates 2^16+2^15 rows which needs to be split into 2 chunks
+                return {
+                    publicOutput: Field(0),
+                };
+            },
+        },
+    },
+});
+const cs = await MyProgram.analyzeMethods();
+const perf = Performance.create(MyProgram.name, cs);
+console.log('MyProgram baseCase method rows: ', cs.baseCase.rows);
+perf.start('compile');
+await MyProgram.compile({ cache: Cache.None });
+perf.end();
+perf.start('prove', 'baseCase');
+let { proof } = await MyProgram.baseCase(Field(0));
+perf.end();
+perf.start('verify', 'baseCase');
+let isValid = await MyProgram.verify(proof);
+perf.end();
+console.log('isValid?', isValid);
+if (!isValid)
+    throw new Error('proof verification failed!');
+//# sourceMappingURL=program-with-chunking.js.map

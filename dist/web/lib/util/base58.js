@@ -1,8 +1,8 @@
+import { sha256 } from '@noble/hashes/sha256';
+import { changeBase } from '../../bindings/crypto/bigint-helpers.js';
 import { versionBytes } from '../../bindings/crypto/constants.js';
 import { withVersionNumber } from '../../bindings/lib/binable.js';
-import { sha256 } from 'js-sha256';
-import { changeBase } from '../../bindings/crypto/bigint-helpers.js';
-export { toBase58Check, fromBase58Check, base58, withBase58, fieldEncodings, alphabet };
+export { alphabet, base58, fieldEncodings, fromBase58Check, toBase58Check, withBase58 };
 const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'.split('');
 let inverseAlphabet = {};
 alphabet.forEach((c, i) => {
@@ -57,11 +57,12 @@ function fromBase58(base58) {
     return digits.map(Number);
 }
 function computeChecksum(input) {
+    let inputBytes = new Uint8Array(input);
     let hash1 = sha256.create();
-    hash1.update(input);
+    hash1.update(inputBytes);
     let hash2 = sha256.create();
-    hash2.update(hash1.array());
-    return hash2.array().slice(0, 4);
+    hash2.update(hash1.digest());
+    return Array.from(hash2.digest().slice(0, 4));
 }
 function base58(binable, versionByte) {
     return {

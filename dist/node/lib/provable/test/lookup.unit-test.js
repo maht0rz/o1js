@@ -8,6 +8,7 @@ import { Gates } from '../gates.js';
 import { constraintSystem, contains } from '../../testing/constraint-system.js';
 import { FeatureFlags } from '../../proof-system/feature-flags.js';
 import { Cache } from '../../proof-system/cache.js';
+import { RuntimeTable } from '../gadgets/runtime-table.js';
 let uint = (n) => {
     return fieldWithRng(Random.bignat((1n << BigInt(n)) - 1n));
 };
@@ -40,7 +41,7 @@ let uint = (n) => {
         return await RangeCheck.verify(proof);
     });
 }
-// Runtime table tests
+// Unit test with constant indices using the deprecated API for runtime tables
 {
     let RuntimeTable = ZkProgram({
         name: 'runtime-table',
@@ -83,5 +84,40 @@ let uint = (n) => {
         let { proof } = await RuntimeTable.runtimeTable(x, y, z);
         return await RuntimeTable.verify(proof);
     });
+}
+// New API runtime table tests using field indices
+{
+    let PowersetProgram = ZkProgram({
+        name: 'powers-of-two',
+        methods: {
+            runtimeTable: {
+                privateInputs: [Field, Field],
+                async method(exponent, result) {
+                    let tableId = 2;
+                    let exponents = [0n, 1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n];
+                    // At configuration time, we define the indices as bigints
+                    let powers = new RuntimeTable(tableId, exponents);
+                    // At lookup time, we can use Field values as indices
+                    // iterate over the exponents and insert the corresponding power of two
+                    for (let exp of exponents) {
+                        powers.insert([[Field.from(exp), Field.from(2n ** exp)]]);
+                    }
+                    // lookup the power of two for the given exponent
+                    powers.lookup(exponent, result);
+                    powers.check(); // flush pending lookups
+                },
+            },
+        },
+    });
+    // constraint system sanity check
+    constraintSystem.fromZkProgram(PowersetProgram, 'runtimeTable', contains(['Lookup']));
+    await PowersetProgram.compile({
+        cache: Cache.None,
+        forceRecompile: true,
+        withRuntimeTables: true,
+    });
+    let { proof } = await PowersetProgram.runtimeTable(Field.from(5n), Field.from(32n));
+    let verified = await PowersetProgram.verify(proof);
+    assert(verified === true);
 }
 //# sourceMappingURL=lookup.unit-test.js.map

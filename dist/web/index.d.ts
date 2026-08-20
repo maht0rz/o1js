@@ -2,6 +2,7 @@
  * Include in this file all the exports that should be part of the public API.
  */
 export { initializeBindings, Ledger } from './bindings.js';
+export { getBackendPreference, setBackend } from './lib/backend.js';
 export { createForeignCurve, ForeignCurve, toPoint } from './lib/provable/crypto/foreign-curve.js';
 export type { FlexiblePoint } from './lib/provable/crypto/foreign-curve.js';
 export { createEcdsa, EcdsaSignature } from './lib/provable/crypto/foreign-ecdsa.js';
@@ -54,8 +55,8 @@ export { Account } from './lib/mina/v1/account.js';
 export { TokenAccountUpdateIterator } from './lib/mina/v1/token/forest-iterator.js';
 export { TokenContract } from './lib/mina/v1/token/token-contract.js';
 export * as Encoding from './bindings/lib/encoding.js';
-export { addCachedAccount, checkZkappTransaction, fetchAccount, fetchEvents, fetchLastBlock, fetchTransactionStatus, Lightnet, sendZkapp, setArchiveGraphqlEndpoint, setGraphqlEndpoint, setGraphqlEndpoints, } from './lib/mina/v1/fetch.js';
-export type { TransactionStatus } from './lib/mina/v1/graphql.js';
+export { addCachedAccount, checkZkappTransaction, fetchAccount, fetchCurrentSlot, fetchEvents, fetchLastBlock, fetchTimedAccountInfo, fetchTransactionDepth, fetchTransactionStatus, Lightnet, sendZkapp, setArchiveGraphqlEndpoint, setGraphqlEndpoint, setGraphqlEndpoints, } from './lib/mina/v1/fetch.js';
+export type { DepthOptions, TransactionDepthInfo, TransactionStatus, } from './lib/mina/v1/graphql.js';
 export * as Encryption from './lib/provable/crypto/encryption.js';
 export { MerkleMap, MerkleMapWitness } from './lib/provable/merkle-map.js';
 export { MerkleTree, MerkleWitness } from './lib/provable/merkle-tree.js';

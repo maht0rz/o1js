@@ -1,6 +1,9 @@
-import { Json, AccountUpdate, ZkappCommand } from '../../bindings/mina-transaction/gen/v1/transaction-bigint.js';
-import { NetworkId } from './types.js';
-export { signZkappCommand, verifyZkappCommandSignature };
+import type { Json } from '../../bindings/mina-transaction/gen/v1/transaction-bigint.js';
+import * as MesaLayout from '../../bindings/mina-transaction/gen/v1/transaction-bigint.js';
+import { NetworkId, Era } from './types.js';
+type AccountUpdate = MesaLayout.AccountUpdate;
+type ZkappCommand = MesaLayout.ZkappCommand;
+export { signZkappCommand, verifyZkappCommandSignature, getZkappCommandCommitments };
 export { transactionCommitments, verifyAccountUpdateSignature, accountUpdatesToCallForest, callForestHash, callForestHashGeneric, accountUpdateHash, feePayerHash, createFeePayer, accountUpdateFromFeePayer, isCallDepthValid, CallForest, };
 /**
  * Signs a zkApp command JSON object with the provided private key.
@@ -20,7 +23,11 @@ export { transactionCommitments, verifyAccountUpdateSignature, accountUpdatesToC
  * @param networkId - The network identifier that determines the signature domain.
  * @returns The signed zkApp command in JSON format.
  */
-declare function signZkappCommand(zkappCommand_: Json.ZkappCommand, privateKeyBase58: string, networkId: NetworkId): Json.ZkappCommand;
+declare function signZkappCommand(zkappCommand_: Json.ZkappCommand, privateKeyBase58: string, networkId: NetworkId, era?: Era): Json.ZkappCommand;
+declare function getZkappCommandCommitments(zkappCommand_: Json.ZkappCommand, networkId: NetworkId, era?: Era): {
+    commitment: bigint;
+    fullCommitment: bigint;
+};
 /**
  * Verifies the signature of a zkApp command JSON object.
  *
@@ -39,12 +46,12 @@ declare function signZkappCommand(zkappCommand_: Json.ZkappCommand, privateKeyBa
  * @warning To verify the zkApp command signature, the public key must match the
  * fee payer's public key, or the parameter `feePayerPublicKey` must be provided.
  */
-declare function verifyZkappCommandSignature(zkappCommand_: Json.ZkappCommand, publicKeyBase58: string, networkId: NetworkId, feePayerPublicKeyBase58?: string): boolean;
+declare function verifyZkappCommandSignature(zkappCommand_: Json.ZkappCommand, publicKeyBase58: string, networkId: NetworkId, era?: Era, feePayerPublicKeyBase58?: string): boolean;
 declare function verifyAccountUpdateSignature(update: AccountUpdate, transactionCommitments: {
     commitment: bigint;
     fullCommitment: bigint;
 }, networkId: NetworkId): boolean;
-declare function transactionCommitments(zkappCommand: ZkappCommand, networkId: NetworkId): {
+declare function transactionCommitments(zkappCommand: ZkappCommand, networkId: NetworkId, era?: Era): {
     commitment: bigint;
     fullCommitment: bigint;
 };
@@ -62,11 +69,11 @@ declare function accountUpdatesToCallForest<A extends {
         callDepth: number;
     };
 }>(updates: A[], callDepth?: number): CallForest<A>;
-declare function accountUpdateHash(update: AccountUpdate, networkId: NetworkId): bigint;
-declare function callForestHash(forest: CallForest<AccountUpdate>, networkId: NetworkId): bigint;
+declare function accountUpdateHash(update: AccountUpdate, networkId: NetworkId, era?: Era): bigint;
+declare function callForestHash(forest: CallForest<AccountUpdate>, networkId: NetworkId, era?: Era): bigint;
 declare function callForestHashGeneric<A, F>(forest: CallForest<A>, hash: (a: A, networkId: NetworkId) => F, hashWithPrefix: (prefix: string, input: F[]) => F, emptyHash: F, networkId: NetworkId): F;
 type FeePayer = ZkappCommand['feePayer'];
 declare function createFeePayer(feePayer: FeePayer['body']): FeePayer;
-declare function feePayerHash(feePayer: FeePayer, networkId: NetworkId): bigint;
-declare function accountUpdateFromFeePayer({ body: { fee, nonce, publicKey, validUntil }, authorization: signature, }: FeePayer): AccountUpdate;
+declare function feePayerHash(feePayer: FeePayer, networkId: NetworkId, era?: Era): bigint;
+declare function accountUpdateFromFeePayer({ body: { fee, nonce, publicKey, validUntil }, authorization: signature, }: FeePayer, era?: Era): AccountUpdate;
 declare function isCallDepthValid(zkappCommand: ZkappCommand): boolean;

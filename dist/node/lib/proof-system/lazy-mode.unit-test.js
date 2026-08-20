@@ -1,19 +1,21 @@
 import { spawn } from 'child_process';
 import { basename, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { wasm } from '../../bindings.js';
+import { wasm, initializeBindings } from '../../bindings.js';
 import { Cache } from '../proof-system/cache.js';
 import { ZkProgram } from '../proof-system/zkprogram.js';
 import { Field } from '../provable/field.js';
 import { assert } from '../provable/gadgets/common.js';
 import { Gadgets } from '../provable/gadgets/gadgets.js';
+import { setBackend } from '../backend.js';
+setBackend('wasm');
 // Path resolution for subprocess execution
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const scriptPath = join(__dirname, basename(__filename));
 function getMemory() {
     return {
-        wasm: wasm.__wasm.memory.buffer.byteLength / (1024 * 1024),
+        wasm: (wasm.__wasm?.memory.buffer.byteLength ?? 0) / (1024 * 1024),
         js: process.memoryUsage().heapTotal / (1024 * 1024),
     };
 }
@@ -33,6 +35,7 @@ let LazyMode = ZkProgram({
     },
 });
 export async function testLazyMode(lazyMode) {
+    await initializeBindings();
     console.log(`(${lazyMode ? 'Lazy' : 'Eager'}) Memory before compilation`, getMemory());
     await LazyMode.compile({
         lazyMode,

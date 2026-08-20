@@ -4,7 +4,7 @@ import { Provable } from '../provable.js';
 import { assert } from './common.js';
 import { Field3, ForeignField, split, weakBound } from './foreign-field.js';
 import { l, l2, l2Mask, multiRangeCheck } from './range-check.js';
-import { sha256 } from 'js-sha256';
+import { sha256 } from '@noble/hashes/sha256';
 import { bigIntToBytes, bytesToBigInt } from '../../../bindings/crypto/bigint-helpers.js';
 import { affineAdd, affineDouble, } from '../../../bindings/crypto/elliptic-curve.js';
 import { Bool } from '../bool.js';
@@ -450,12 +450,12 @@ function getPointTable(Curve, P, windowSize, table) {
 function initialAggregator(Curve) {
     // hash that identifies the curve
     let h = sha256.create();
-    h.update('initial-aggregator');
-    h.update(bigIntToBytes(Curve.modulus));
-    h.update(bigIntToBytes(Curve.order));
-    h.update(bigIntToBytes(Curve.a));
-    h.update(bigIntToBytes(Curve.b));
-    let bytes = h.array();
+    h.update(new TextEncoder().encode('initial-aggregator'));
+    h.update(new Uint8Array(bigIntToBytes(Curve.modulus)));
+    h.update(new Uint8Array(bigIntToBytes(Curve.order)));
+    h.update(new Uint8Array(bigIntToBytes(Curve.a)));
+    h.update(new Uint8Array(bigIntToBytes(Curve.b)));
+    let bytes = h.digest();
     // bytes represent a 256-bit number
     // use that as x coordinate
     const F = Curve.Field;

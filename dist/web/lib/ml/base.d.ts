@@ -41,7 +41,7 @@ declare const MlOption: (<T>(x?: T) => MlOption<T>) & {
     from<T_1>(option: MlOption<T_1>): T_1 | undefined;
     map<T_2, S>(option: MlOption<T_2>, map: (t: T_2) => S): MlOption<S>;
     mapFrom<T_3, S_1>(option: MlOption<T_3>, map: (t: T_3) => S_1): S_1 | undefined;
-    mapTo<T_4, S_2>(option: T_4 | undefined, map: (t: T_4) => S_2): MlOption<S_2>;
+    mapTo<T_4, S_2>(option: T_4 | null | undefined, map: (t: T_4) => S_2): MlOption<S_2>;
     isNone(option: MlOption<unknown>): option is 0;
     isSome<T_5>(option: MlOption<T_5>): option is [0, T_5];
 };

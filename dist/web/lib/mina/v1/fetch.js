@@ -1,11 +1,12 @@
-import { Field } from '../../provable/wrapped.js';
+import { PrivateKey, PublicKey } from '../../provable/crypto/signature.js';
 import { UInt32, UInt64 } from '../../provable/int.js';
+import { Field } from '../../provable/wrapped.js';
+import { AccountTiming } from '../v2/account.js';
 import { Actions, TokenId } from './account-update.js';
-import { PublicKey, PrivateKey } from '../../provable/crypto/signature.js';
-import { LedgerHash, EpochSeed, StateHash } from './base58-encodings.js';
 import { fillPartialAccount, parseFetchedAccount } from './account.js';
-import { sendZkappQuery, lastBlockQuery, lastBlockQueryFailureCheck, transactionStatusQuery, getEventsQuery, getActionsQuery, genesisConstantsQuery, accountQuery, currentSlotQuery, } from './graphql.js';
-export { fetchAccount, fetchLastBlock, fetchGenesisConstants, fetchCurrentSlot, checkZkappTransaction, parseFetchedAccount, markAccountToBeFetched, markNetworkToBeFetched, markActionsToBeFetched, fetchMissingData, fetchTransactionStatus, getCachedAccount, getCachedNetwork, getCachedActions, getCachedGenesisConstants, addCachedAccount, networkConfig, setMinaDefaultHeaders, setArchiveDefaultHeaders, setGraphqlEndpoint, setGraphqlEndpoints, setMinaGraphqlFallbackEndpoints, setArchiveGraphqlEndpoint, setArchiveGraphqlFallbackEndpoints, setLightnetAccountManagerEndpoint, sendZkapp, fetchEvents, fetchActions, makeGraphqlRequest, Lightnet, };
+import { EpochSeed, LedgerHash, StateHash } from './base58-encodings.js';
+import { accountQuery, currentSlotQuery, genesisConstantsQuery, getActionsQuery, getEventsQuery, lastBlockQuery, lastBlockQueryFailureCheck, sendZkappQuery, transactionStatusQuery, } from './graphql.js';
+export { Lightnet, addCachedAccount, checkZkappTransaction, fetchAccount, fetchActions, fetchCurrentSlot, fetchEvents, fetchGenesisConstants, fetchLastBlock, fetchMissingData, fetchTimedAccountInfo, fetchTransactionDepth, fetchTransactionStatus, getCachedAccount, getCachedActions, getCachedGenesisConstants, getCachedNetwork, makeGraphqlRequest, markAccountToBeFetched, markActionsToBeFetched, markNetworkToBeFetched, networkConfig, parseFetchedAccount, sendZkapp, setArchiveDefaultHeaders, setArchiveGraphqlEndpoint, setArchiveGraphqlFallbackEndpoints, setGraphqlEndpoint, setGraphqlEndpoints, setLightnetAccountManagerEndpoint, setMinaDefaultHeaders, setMinaGraphqlFallbackEndpoints, };
 let networkConfig = {
     minaEndpoint: '',
     minaFallbackEndpoints: [],
@@ -155,6 +156,52 @@ async function fetchAccountInternal(accountInfo, graphqlEndpoint = networkConfig
         error: undefined,
     };
 }
+/**
+ * Fetches detailed balance information for a time-locked account.
+ *
+ * This function retrieves account data and calculates the liquid and locked
+ * balances based on the current global slot and the account's vesting schedule.
+ *
+ * @param accountInfo - The account identifier containing publicKey and optional tokenId
+ * @param graphqlEndpoint - The GraphQL endpoint to fetch from (defaults to configured endpoint)
+ * @param config - Optional fetch configuration with timeout and headers
+ * @returns An object containing balance details and timing information, or an error
+ */
+async function fetchTimedAccountInfo(accountInfo, graphqlEndpoint = networkConfig.minaEndpoint, { timeout = defaultTimeout, headers } = {}) {
+    const accountResult = await fetchAccount(accountInfo, graphqlEndpoint, {
+        timeout,
+        headers,
+    });
+    if (accountResult.error) {
+        return { error: accountResult.error };
+    }
+    const account = accountResult.account;
+    if (!account.timing.isTimed.toBoolean()) {
+        return {
+            error: {
+                statusCode: 400,
+                statusText: 'Account is not time-locked. This function should only be called for accounts with vesting schedules.',
+            },
+        };
+    }
+    const lastBlock = await fetchLastBlock(graphqlEndpoint, headers);
+    const globalSlot = lastBlock.globalSlotSinceGenesis;
+    const accountTiming = new AccountTiming(account.timing);
+    const totalBalance = account.balance;
+    // lockedBalance is the minimum balance that must remain (from min_balance_at_slot in OCaml)
+    const lockedBalance = accountTiming.minimumBalanceAtSlot(globalSlot);
+    // liquidBalance is what's available to spend (total - locked)
+    const liquidBalance = totalBalance.sub(lockedBalance);
+    return {
+        account,
+        totalBalance,
+        lockedBalance,
+        liquidBalance,
+        blockHeight: lastBlock.blockchainLength,
+        globalSlot,
+        error: undefined,
+    };
+}
 // Specify 5min as the default timeout
 const defaultTimeout = 5 * 60 * 1000;
 let accountCache = {};
@@ -265,6 +312,13 @@ function accountCacheKey(publicKey, tokenId, graphqlEndpoint) {
 }
 /**
  * Fetches the last block on the Mina network.
+ *
+ * This returns comprehensive network state information including the global slot
+ * since genesis (`globalSlotSinceGenesis`), blockchain length, ledger hashes,
+ * currency supply, and epoch data.
+ *
+ * For a lightweight query that only fetches slot information, use `fetchCurrentSlot()`,
+ * which can return either the global slot since genesis or the slot within the current epoch.
  */
 async function fetchLastBlock(graphqlEndpoint = networkConfig.minaEndpoint, headers) {
     let [resp, error] = await makeGraphqlRequest(lastBlockQuery, graphqlEndpoint, networkConfig.minaFallbackEndpoints, { headers: { ...networkConfig.minaDefaultHeaders, ...headers } });
@@ -284,11 +338,32 @@ async function fetchLastBlock(graphqlEndpoint = networkConfig.minaEndpoint, head
 }
 /**
  * Fetches the current slot number of the Mina network.
+ *
+ * By default, returns the global slot since genesis (the cumulative count of all slots
+ * since the network launched). This matches `fetchLastBlock().globalSlotSinceGenesis`.
+ *
+ * Alternatively, you can fetch the slot within the current epoch by passing `slotType: 'epoch'`.
+ * The epoch slot resets to 0 at each epoch boundary (approximately every 14 days) and
+ * ranges from 0 to ~7,139.
+ *
  * @param graphqlEndpoint GraphQL endpoint to fetch from
- * @param headers optional headers to pass to the fetch request
- * @returns The current slot number
+ * @param slotType Type of slot to fetch: 'global' (default) for slot since genesis, or 'epoch' for slot within current epoch
+ * @param headers Optional headers to pass to the fetch request
+ * @returns The slot number (either global or epoch-relative based on slotType)
+ *
+ * @example
+ * ```ts
+ * // Fetch global slot (default)
+ * const globalSlot = await fetchCurrentSlot('https://api.minascan.io/node/devnet/v1/graphql');
+ *
+ * // Fetch epoch-relative slot
+ * const epochSlot = await fetchCurrentSlot(
+ *   'https://api.minascan.io/node/devnet/v1/graphql',
+ *   'epoch'
+ * );
+ * ```
  */
-async function fetchCurrentSlot(graphqlEndpoint = networkConfig.minaEndpoint, headers) {
+async function fetchCurrentSlot(graphqlEndpoint = networkConfig.minaEndpoint, slotType = 'global', headers) {
     let [resp, error] = await makeGraphqlRequest(currentSlotQuery, graphqlEndpoint, networkConfig.minaFallbackEndpoints, { headers: { ...networkConfig.minaDefaultHeaders, ...headers } });
     if (error)
         throw Error(`Error making GraphQL request: ${error.statusText}`);
@@ -296,7 +371,8 @@ async function fetchCurrentSlot(graphqlEndpoint = networkConfig.minaEndpoint, he
     if (!bestChain || bestChain.length === 0) {
         throw Error('Failed to fetch the current slot. The response data is undefined.');
     }
-    return bestChain[0].protocolState.consensusState.slot;
+    const consensusState = bestChain[0].protocolState.consensusState;
+    return slotType === 'epoch' ? consensusState.slot : consensusState.slotSinceGenesis;
 }
 async function fetchLatestBlockZkappStatus(blockLength, graphqlEndpoint = networkConfig.minaEndpoint) {
     let [resp, error] = await makeGraphqlRequest(lastBlockQueryFailureCheck(blockLength), graphqlEndpoint, networkConfig.minaFallbackEndpoints, { headers: networkConfig.minaDefaultHeaders });
@@ -313,6 +389,7 @@ async function checkZkappTransaction(transactionHash, blockLength = 20) {
     for (let block of bestChainBlocks.bestChain) {
         for (let zkappCommand of block.transactions.zkappCommands) {
             if (zkappCommand.hash === transactionHash) {
+                const blockHeight = parseInt(block.protocolState.consensusState.blockHeight, 10);
                 if (zkappCommand.failureReason !== null) {
                     let failureReason = zkappCommand.failureReason.reverse().map((failure) => {
                         return [failure.failures.map((failureItem) => failureItem)];
@@ -320,12 +397,14 @@ async function checkZkappTransaction(transactionHash, blockLength = 20) {
                     return {
                         success: false,
                         failureReason,
+                        blockHeight,
                     };
                 }
                 else {
                     return {
                         success: true,
                         failureReason: null,
+                        blockHeight,
                     };
                 }
             }
@@ -334,7 +413,69 @@ async function checkZkappTransaction(transactionHash, blockLength = 20) {
     return {
         success: false,
         failureReason: null,
+        blockHeight: undefined,
     };
+}
+/**
+ * Default finality threshold of 15 blocks provides 99.9% confidence.
+ * @see https://docs.minaprotocol.com/mina-protocol/lifecycle-of-a-payment
+ */
+const DEFAULT_FINALITY_THRESHOLD = 15;
+/**
+ * Fetches the depth (confirmation count) of a transaction in the blockchain.
+ * Depth represents how many blocks have been built on top of the block containing the transaction.
+ *
+ * @param transactionHash - The hash of the transaction to check
+ * @param options - Optional configuration for the depth query
+ * @param options.blockLength - Number of blocks to search for the transaction (default: 20)
+ * @param options.finalityThreshold - Number of blocks required for finality (default: 15, which provides 99.9% confidence)
+ * @returns TransactionDepthInfo if the transaction is found and successful, null otherwise
+ *
+ * @example
+ * ```ts
+ * // Check depth of a transaction
+ * const depthInfo = await fetchTransactionDepth('5JuKp...');
+ * if (depthInfo) {
+ *   console.log(`Depth: ${depthInfo.depth}, Finalized: ${depthInfo.isFinalized}`);
+ * }
+ *
+ * // Use custom finality threshold
+ * const depthInfo = await fetchTransactionDepth('5JuKp...', { finalityThreshold: 10 });
+ * ```
+ *
+ * @see https://docs.minaprotocol.com/mina-protocol/lifecycle-of-a-payment
+ */
+async function fetchTransactionDepth(transactionHash, options) {
+    const blockLength = options?.blockLength ?? 20;
+    const finalityThreshold = options?.finalityThreshold ?? DEFAULT_FINALITY_THRESHOLD;
+    let bestChainBlocks = await fetchLatestBlockZkappStatus(blockLength);
+    if (bestChainBlocks.bestChain.length === 0) {
+        return null;
+    }
+    // The first block in bestChain is the current tip
+    const currentBlockHeight = parseInt(bestChainBlocks.bestChain[0].protocolState.consensusState.blockHeight, 10);
+    // Search through blocks for the transaction
+    for (let block of bestChainBlocks.bestChain) {
+        for (let zkappCommand of block.transactions.zkappCommands) {
+            if (zkappCommand.hash === transactionHash) {
+                // Transaction found - if it has failures, it's not validly included
+                if (zkappCommand.failureReason !== null) {
+                    return null;
+                }
+                const inclusionBlockHeight = parseInt(block.protocolState.consensusState.blockHeight, 10);
+                // Depth should never be negative (safeguard against edge cases)
+                const depth = Math.max(0, currentBlockHeight - inclusionBlockHeight);
+                return {
+                    depth,
+                    inclusionBlockHeight,
+                    currentBlockHeight,
+                    isFinalized: depth >= finalityThreshold,
+                    finalityThreshold,
+                };
+            }
+        }
+    }
+    return null;
 }
 function parseFetchedBlock({ protocolState: { blockchainState: { snarkedLedgerHash }, consensusState: { blockHeight, minWindowDensity, totalCurrency, slotSinceGenesis, nextEpochData, stakingEpochData, }, }, }) {
     return {
@@ -662,26 +803,44 @@ async function makeGraphqlRequest(query, graphqlEndpoint = networkConfig.minaEnd
         timeouts.forEach((t) => clearTimeout(t));
         timeouts = [];
     };
+    const maxRetries = 3;
+    const retryDelay = 1000;
     const makeRequest = async (url) => {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeout);
-        timeouts.push(timer);
-        let body = JSON.stringify({ operationName: null, query, variables: {} });
-        try {
-            let response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...headers,
-                },
-                body,
-                signal: controller.signal,
-            });
-            return checkResponseStatus(response);
+        let lastError;
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeout);
+            timeouts.push(timer);
+            let body = JSON.stringify({ operationName: null, query, variables: {} });
+            try {
+                let response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...headers,
+                    },
+                    body,
+                    signal: controller.signal,
+                });
+                return checkResponseStatus(response);
+            }
+            catch (error) {
+                lastError = error;
+                clearTimeouts();
+                // only retry on transient network errors, not aborts
+                if (error instanceof Error && error.name === 'AbortError')
+                    throw error;
+                if (attempt < maxRetries - 1) {
+                    await new Promise((r) => setTimeout(r, retryDelay * (attempt + 1)));
+                    continue;
+                }
+                throw error;
+            }
+            finally {
+                clearTimeouts();
+            }
         }
-        finally {
-            clearTimeouts();
-        }
+        throw lastError;
     };
     // try to fetch from endpoints in pairs
     let timeoutErrors = [];
@@ -751,8 +910,12 @@ async function checkResponseStatus(response) {
     }
 }
 function inferError(error) {
-    let errorMessage = JSON.stringify(error);
-    if (error instanceof AbortSignal) {
+    let errorMessage = error instanceof Error
+        ? `${error.name}: ${error.message}${error.cause
+            ? ` (cause: ${error.cause.message ?? error.cause})`
+            : ''}`
+        : JSON.stringify(error);
+    if (error instanceof Error && error.name === 'AbortError') {
         return { statusCode: 408, statusText: `Request Timeout: ${errorMessage}` };
     }
     else {

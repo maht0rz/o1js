@@ -1,5 +1,5 @@
 import { TokenId } from './account-update.js';
-export { getEventsQuery, getActionsQuery, sendZkappQuery, transactionStatusQuery, lastBlockQueryFailureCheck, accountQuery, currentSlotQuery, genesisConstantsQuery, lastBlockQuery, removeJsonQuotes, };
+export { accountQuery, currentSlotQuery, genesisConstantsQuery, getActionsQuery, getEventsQuery, lastBlockQuery, lastBlockQueryFailureCheck, removeJsonQuotes, sendZkappQuery, transactionStatusQuery, };
 // removes the quotes on JSON keys
 function removeJsonQuotes(json) {
     let cleaned = JSON.stringify(JSON.parse(json), null, 2);
@@ -234,6 +234,7 @@ const currentSlotQuery = `{
       protocolState {
         consensusState {
           slot
+          slotSinceGenesis
         }
       }
     }

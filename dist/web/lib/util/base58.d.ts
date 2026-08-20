@@ -1,5 +1,5 @@
 import { Binable } from '../../bindings/lib/binable.js';
-export { toBase58Check, fromBase58Check, base58, withBase58, fieldEncodings, Base58, alphabet };
+export { Base58, alphabet, base58, fieldEncodings, fromBase58Check, toBase58Check, withBase58 };
 declare const alphabet: string[];
 declare function toBase58Check(input: number[] | Uint8Array, versionByte: number): string;
 declare function fromBase58Check(base58: string, versionByte: number): number[];

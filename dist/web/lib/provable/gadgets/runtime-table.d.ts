@@ -100,7 +100,7 @@ declare class RuntimeTable {
     /**
      * Pending pairs to be checked on the runtime table.
      */
-    pairs: Array<[bigint, Field]>;
+    pairs: Array<[Field, Field]>;
     constructor(id: number, indices: bigint[]);
     /**
      * Inserts key-value pairs into the runtime table.
@@ -112,8 +112,9 @@ declare class RuntimeTable {
      * the runtime table.
      *
      * @param pairs Array of pairs [index, value] to insert into the runtime table.
+     * Each index can be a `bigint` or a `Field`.
      */
-    insert(pairs: [bigint, Field][]): void;
+    insert(pairs: [bigint | Field, Field][]): void;
     /**
      * In-circuit checks if a key-value pair exists in the runtime table. Note
      * that the same index can be queried several times as long as the value
@@ -125,7 +126,7 @@ declare class RuntimeTable {
      * @param idx The index of the key to check.
      * @param value The value to check.
      */
-    lookup(idx: bigint, value: Field): void;
+    lookup(idx: bigint | Field, value: Field): void;
     /**
      * Finalizes any pending checks by creating a Lookup when necessary.
      * This function must be called after all `lookup()` calls of the table

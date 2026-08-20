@@ -1,7 +1,8 @@
 import { PrivateKey, PublicKey } from './src/curve-bigint.js';
 import { isPayment, isSignedDelegation, isSignedPayment, isSignedString, isSignedZkappCommand, isStakeDelegation, isZkappCommand, } from './src/utils.js';
 import { ZkappCommand } from '../bindings/mina-transaction/gen/v1/transaction-bigint.js';
-import { signZkappCommand, verifyZkappCommandSignature } from './src/sign-zkapp-command.js';
+import { ZkappCommand as ZkappCommandBerkeley } from './src/berkeley/transaction-bigint.js';
+import { signZkappCommand, verifyZkappCommandSignature, getZkappCommandCommitments as getCommitments } from './src/sign-zkapp-command.js';
 import { signPayment, signStakeDelegation, signString, verifyPayment, verifyStakeDelegation, verifyStringSignature, } from './src/sign-legacy.js';
 import { hashPayment, hashStakeDelegation } from './src/transaction-hash.js';
 import { Memo } from './src/memo.js';
@@ -11,8 +12,9 @@ import { createNullifier } from './src/nullifier.js';
 export { Client, Client as default };
 const defaultValidUntil = '4294967295';
 class Client {
-    constructor({ network }) {
+    constructor({ network, era = 'mesa' }) {
         this.network = network;
+        this.era = era;
     }
     /**
      * Generates a public/private key pair
@@ -42,11 +44,12 @@ class Client {
             derivedPublicKey.isOdd !== originalPublicKey.isOdd) {
             throw Error('Public key not derivable from private key');
         }
-        let dummy = ZkappCommand.toJSON(ZkappCommand.empty());
+        let ZkappCommand_ = this.era === 'berkeley' ? ZkappCommandBerkeley : ZkappCommand;
+        let dummy = ZkappCommand_.toJSON(ZkappCommand_.empty());
         dummy.feePayer.body.publicKey = publicKey;
         dummy.memo = Memo.toBase58(Memo.empty());
-        let signed = signZkappCommand(dummy, privateKey, this.network);
-        let ok = verifyZkappCommandSignature(signed, publicKey, this.network);
+        let signed = signZkappCommand(dummy, privateKey, this.network, this.era);
+        let ok = verifyZkappCommandSignature(signed, publicKey, this.network, this.era);
         if (!ok)
             throw Error('Could not sign a transaction with private key');
         return true;
@@ -308,9 +311,45 @@ class Client {
             accountUpdates,
             memo: Memo.toBase58(Memo.fromString(memo)),
         };
-        let signed = signZkappCommand(command, privateKey, this.network);
+        let signed = signZkappCommand(command, privateKey, this.network, this.era);
         let signature = signed.feePayer.authorization;
         return { signature, publicKey, data: { zkappCommand: signed, feePayer } };
+    }
+    /**
+     * Computes the commitment and full commitment of a zkApp transaction from
+     * the mina-signer wrapper input — the same `{ feePayer, zkappCommand }`
+     * shape accepted by {@link signZkappCommand}.
+     *
+     * Validates the fee payer (minimum-fee check, memo length, non-negative
+     * fee/nonce/validUntil) and normalizes the memo before computing
+     * commitments.
+     */
+    getZkappCommandCommitments({ feePayer: feePayer_, zkappCommand }) {
+        let accountUpdates = zkappCommand.accountUpdates;
+        let minimumFee = this.getAccountUpdateMinimumFee(accountUpdates);
+        let feePayer = validFeePayer(feePayer_, minimumFee);
+        let { fee, nonce, validUntil, feePayer: publicKey, memo } = feePayer;
+        let command = {
+            feePayer: {
+                body: { publicKey, fee, nonce, validUntil },
+                authorization: '',
+            },
+            accountUpdates,
+            memo: Memo.toBase58(Memo.fromString(memo)),
+        };
+        return getCommitments(command, this.network, this.era);
+    }
+    /**
+     * Computes the commitment and full commitment of a zkApp transaction from a
+     * fully-formed `TransactionJson.ZkappCommand` — the shape produced by
+     * `tx.toJSON()` (after `JSON.parse`).
+     *
+     * Skips fee-payer validation: the input is assumed to be well-formed.
+     * The protocol minimum fee is not enforced here — the network will reject
+     * a too-low fee on submission.
+     */
+    getZkappCommandCommitmentsFromJSON(zkappCommand) {
+        return getCommitments(zkappCommand, this.network, this.era);
     }
     /**
      * Verifies a signed zkApp transaction.
@@ -320,7 +359,7 @@ class Client {
      */
     verifyZkappCommand({ data, publicKey, signature }) {
         return (signature === data.zkappCommand.feePayer.authorization &&
-            verifyZkappCommandSignature(data.zkappCommand, publicKey, this.network));
+            verifyZkappCommandSignature(data.zkappCommand, publicKey, this.network, this.era));
     }
     /**
      * Converts a Rosetta signed transaction to a JSON string that is

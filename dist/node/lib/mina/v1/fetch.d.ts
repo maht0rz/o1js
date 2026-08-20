@@ -1,11 +1,11 @@
-import { Field } from '../../provable/wrapped.js';
-import { UInt32, UInt64 } from '../../provable/int.js';
-import { PublicKey, PrivateKey } from '../../provable/crypto/signature.js';
 import { Types } from '../../../bindings/mina-transaction/v1/types.js';
+import { PrivateKey, PublicKey } from '../../provable/crypto/signature.js';
+import { UInt32, UInt64 } from '../../provable/int.js';
+import { Field } from '../../provable/wrapped.js';
+import { Account, PartialAccount, parseFetchedAccount } from './account.js';
+import { type ActionsQueryInputs, type DepthOptions, type EventsQueryInputs, type FetchedAction, type SendZkAppResponse, type TransactionDepthInfo, type TransactionStatus } from './graphql.js';
 import { ActionStates } from './mina.js';
-import { Account, parseFetchedAccount, PartialAccount } from './account.js';
-import { type FetchedAction, type TransactionStatus, type EventsQueryInputs, type ActionsQueryInputs, type SendZkAppResponse } from './graphql.js';
-export { fetchAccount, fetchLastBlock, fetchGenesisConstants, fetchCurrentSlot, checkZkappTransaction, parseFetchedAccount, markAccountToBeFetched, markNetworkToBeFetched, markActionsToBeFetched, fetchMissingData, fetchTransactionStatus, getCachedAccount, getCachedNetwork, getCachedActions, getCachedGenesisConstants, addCachedAccount, networkConfig, setMinaDefaultHeaders, setArchiveDefaultHeaders, setGraphqlEndpoint, setGraphqlEndpoints, setMinaGraphqlFallbackEndpoints, setArchiveGraphqlEndpoint, setArchiveGraphqlFallbackEndpoints, setLightnetAccountManagerEndpoint, sendZkapp, fetchEvents, fetchActions, makeGraphqlRequest, Lightnet, type GenesisConstants, type ActionStatesStringified, };
+export { Lightnet, addCachedAccount, checkZkappTransaction, fetchAccount, fetchActions, fetchCurrentSlot, fetchEvents, fetchGenesisConstants, fetchLastBlock, fetchMissingData, fetchTimedAccountInfo, fetchTransactionDepth, fetchTransactionStatus, getCachedAccount, getCachedActions, getCachedGenesisConstants, getCachedNetwork, makeGraphqlRequest, markAccountToBeFetched, markActionsToBeFetched, markNetworkToBeFetched, networkConfig, parseFetchedAccount, sendZkapp, setArchiveDefaultHeaders, setArchiveGraphqlEndpoint, setArchiveGraphqlFallbackEndpoints, setGraphqlEndpoint, setGraphqlEndpoints, setLightnetAccountManagerEndpoint, setMinaDefaultHeaders, setMinaGraphqlFallbackEndpoints, type ActionStatesStringified, type GenesisConstants, };
 declare let networkConfig: {
     minaEndpoint: string;
     minaFallbackEndpoints: string[];
@@ -83,6 +83,31 @@ declare function fetchAccount(accountInfo: {
     account: undefined;
     error: FetchError;
 }>;
+/**
+ * Fetches detailed balance information for a time-locked account.
+ *
+ * This function retrieves account data and calculates the liquid and locked
+ * balances based on the current global slot and the account's vesting schedule.
+ *
+ * @param accountInfo - The account identifier containing publicKey and optional tokenId
+ * @param graphqlEndpoint - The GraphQL endpoint to fetch from (defaults to configured endpoint)
+ * @param config - Optional fetch configuration with timeout and headers
+ * @returns An object containing balance details and timing information, or an error
+ */
+declare function fetchTimedAccountInfo(accountInfo: {
+    publicKey: string | PublicKey;
+    tokenId?: string | Field;
+}, graphqlEndpoint?: string, { timeout, headers }?: FetchConfig): Promise<{
+    account: Types.Account;
+    totalBalance: UInt64;
+    lockedBalance: UInt64;
+    liquidBalance: UInt64;
+    blockHeight: UInt32;
+    globalSlot: UInt32;
+    error: undefined;
+} | {
+    error: FetchError;
+}>;
 type FetchConfig = {
     timeout?: number;
     headers?: HeadersInit;
@@ -114,29 +139,29 @@ declare function fetchMissingData(graphqlEndpoint: string, archiveEndpoint?: str
 declare function getCachedAccount(publicKey: PublicKey, tokenId: Field, graphqlEndpoint?: string): Account | undefined;
 declare function getCachedNetwork(graphqlEndpoint?: string): {
     snarkedLedgerHash: import("../../provable/field.js").Field;
-    blockchainLength: UInt32;
-    minWindowDensity: UInt32;
-    totalCurrency: UInt64;
-    globalSlotSinceGenesis: UInt32;
+    blockchainLength: Types.UInt32;
+    minWindowDensity: Types.UInt32;
+    totalCurrency: Types.UInt64;
+    globalSlotSinceGenesis: Types.UInt32;
     stakingEpochData: {
         ledger: {
             hash: import("../../provable/field.js").Field;
-            totalCurrency: UInt64;
+            totalCurrency: Types.UInt64;
         };
         seed: import("../../provable/field.js").Field;
         startCheckpoint: import("../../provable/field.js").Field;
         lockCheckpoint: import("../../provable/field.js").Field;
-        epochLength: UInt32;
+        epochLength: Types.UInt32;
     };
     nextEpochData: {
         ledger: {
             hash: import("../../provable/field.js").Field;
-            totalCurrency: UInt64;
+            totalCurrency: Types.UInt64;
         };
         seed: import("../../provable/field.js").Field;
         startCheckpoint: import("../../provable/field.js").Field;
         lockCheckpoint: import("../../provable/field.js").Field;
-        epochLength: UInt32;
+        epochLength: Types.UInt32;
     };
 };
 declare function getCachedActions(publicKey: PublicKey, tokenId: Field, graphqlEndpoint?: string): {
@@ -150,48 +175,107 @@ declare function getCachedGenesisConstants(graphqlEndpoint?: string): GenesisCon
 declare function addCachedAccount(partialAccount: PartialAccount, graphqlEndpoint?: string): void;
 /**
  * Fetches the last block on the Mina network.
+ *
+ * This returns comprehensive network state information including the global slot
+ * since genesis (`globalSlotSinceGenesis`), blockchain length, ledger hashes,
+ * currency supply, and epoch data.
+ *
+ * For a lightweight query that only fetches slot information, use `fetchCurrentSlot()`,
+ * which can return either the global slot since genesis or the slot within the current epoch.
  */
 declare function fetchLastBlock(graphqlEndpoint?: string, headers?: HeadersInit): Promise<{
     snarkedLedgerHash: import("../../provable/field.js").Field;
-    blockchainLength: UInt32;
-    minWindowDensity: UInt32;
-    totalCurrency: UInt64;
-    globalSlotSinceGenesis: UInt32;
+    blockchainLength: Types.UInt32;
+    minWindowDensity: Types.UInt32;
+    totalCurrency: Types.UInt64;
+    globalSlotSinceGenesis: Types.UInt32;
     stakingEpochData: {
         ledger: {
             hash: import("../../provable/field.js").Field;
-            totalCurrency: UInt64;
+            totalCurrency: Types.UInt64;
         };
         seed: import("../../provable/field.js").Field;
         startCheckpoint: import("../../provable/field.js").Field;
         lockCheckpoint: import("../../provable/field.js").Field;
-        epochLength: UInt32;
+        epochLength: Types.UInt32;
     };
     nextEpochData: {
         ledger: {
             hash: import("../../provable/field.js").Field;
-            totalCurrency: UInt64;
+            totalCurrency: Types.UInt64;
         };
         seed: import("../../provable/field.js").Field;
         startCheckpoint: import("../../provable/field.js").Field;
         lockCheckpoint: import("../../provable/field.js").Field;
-        epochLength: UInt32;
+        epochLength: Types.UInt32;
     };
 }>;
 /**
  * Fetches the current slot number of the Mina network.
+ *
+ * By default, returns the global slot since genesis (the cumulative count of all slots
+ * since the network launched). This matches `fetchLastBlock().globalSlotSinceGenesis`.
+ *
+ * Alternatively, you can fetch the slot within the current epoch by passing `slotType: 'epoch'`.
+ * The epoch slot resets to 0 at each epoch boundary (approximately every 14 days) and
+ * ranges from 0 to ~7,139.
+ *
  * @param graphqlEndpoint GraphQL endpoint to fetch from
- * @param headers optional headers to pass to the fetch request
- * @returns The current slot number
+ * @param slotType Type of slot to fetch: 'global' (default) for slot since genesis, or 'epoch' for slot within current epoch
+ * @param headers Optional headers to pass to the fetch request
+ * @returns The slot number (either global or epoch-relative based on slotType)
+ *
+ * @example
+ * ```ts
+ * // Fetch global slot (default)
+ * const globalSlot = await fetchCurrentSlot('https://api.minascan.io/node/devnet/v1/graphql');
+ *
+ * // Fetch epoch-relative slot
+ * const epochSlot = await fetchCurrentSlot(
+ *   'https://api.minascan.io/node/devnet/v1/graphql',
+ *   'epoch'
+ * );
+ * ```
  */
-declare function fetchCurrentSlot(graphqlEndpoint?: string, headers?: HeadersInit): Promise<number>;
+declare function fetchCurrentSlot(graphqlEndpoint?: string, slotType?: 'global' | 'epoch', headers?: HeadersInit): Promise<number>;
 declare function checkZkappTransaction(transactionHash: string, blockLength?: number): Promise<{
     success: boolean;
     failureReason: string[][][];
+    blockHeight: number;
 } | {
     success: boolean;
     failureReason: null;
+    blockHeight: number;
+} | {
+    success: boolean;
+    failureReason: null;
+    blockHeight: undefined;
 }>;
+/**
+ * Fetches the depth (confirmation count) of a transaction in the blockchain.
+ * Depth represents how many blocks have been built on top of the block containing the transaction.
+ *
+ * @param transactionHash - The hash of the transaction to check
+ * @param options - Optional configuration for the depth query
+ * @param options.blockLength - Number of blocks to search for the transaction (default: 20)
+ * @param options.finalityThreshold - Number of blocks required for finality (default: 15, which provides 99.9% confidence)
+ * @returns TransactionDepthInfo if the transaction is found and successful, null otherwise
+ *
+ * @example
+ * ```ts
+ * // Check depth of a transaction
+ * const depthInfo = await fetchTransactionDepth('5JuKp...');
+ * if (depthInfo) {
+ *   console.log(`Depth: ${depthInfo.depth}, Finalized: ${depthInfo.isFinalized}`);
+ * }
+ *
+ * // Use custom finality threshold
+ * const depthInfo = await fetchTransactionDepth('5JuKp...', { finalityThreshold: 10 });
+ * ```
+ *
+ * @see https://docs.minaprotocol.com/mina-protocol/lifecycle-of-a-payment
+ */
+declare function fetchTransactionDepth(transactionHash: string, options?: DepthOptions): Promise<TransactionDepthInfo | null>;
 /**
  * Fetches the status of a transaction.
  */
@@ -226,10 +310,10 @@ declare function fetchEvents(queryInputs: EventsQueryInputs, graphqlEndpoint?: s
             status: string;
         };
     }[];
-    blockHeight: UInt32;
+    blockHeight: Types.UInt32;
     blockHash: string;
     parentBlockHash: string;
-    globalSlot: UInt32;
+    globalSlot: Types.UInt32;
     chainStatus: string;
 }[]>;
 /**

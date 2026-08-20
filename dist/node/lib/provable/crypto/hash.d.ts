@@ -31,7 +31,13 @@ declare const Hash: {
     Poseidon: {
         hash(input: import("../field.js").Field[]): import("../field.js").Field;
         update(state: [import("../field.js").Field, import("../field.js").Field, import("../field.js").Field], input: import("../field.js").Field[]): [import("../field.js").Field, import("../field.js").Field, import("../field.js").Field];
-        hashWithPrefix(prefix: string, input: import("../field.js").Field[]): import("../field.js").Field;
+        hashWithPrefix(prefix: string, input: import("../field.js").Field[]): import("../field.js").Field; /**
+         * Hashes the given bytes using Keccak-384.
+         *
+         * This is an alias for `Keccak.preNist(384, bytes)`.\
+         * See {@link Keccak.preNist} for details and usage examples.
+         */
+        hashAnyLength(input: import("../field.js").Field[]): import("../field.js").Field;
         initialState(): [import("../field.js").Field, import("../field.js").Field, import("../field.js").Field];
         Unsafe: {
             hashToGroup(input: import("../field.js").Field[]): import("../group.js").Group;

@@ -1,12 +1,14 @@
 import * as Json from './src/types.js';
-import type { SignedLegacy, Signed, NetworkId, SignedRosetta } from './src/types.js';
+import type { SignedLegacy, Signed, NetworkId, SignedRosetta, Era } from './src/types.js';
 import * as TransactionJson from '../bindings/mina-transaction/gen/v1/transaction-json.js';
 import * as Rosetta from './src/rosetta.js';
 export { Client, Client as default, type NetworkId };
 declare class Client {
     private network;
-    constructor({ network }: {
+    private era;
+    constructor({ network, era }: {
         network: NetworkId;
+        era?: Era;
     });
     /**
      * Generates a public/private key pair
@@ -184,6 +186,32 @@ declare class Client {
      */
     signZkappCommand({ feePayer: feePayer_, zkappCommand }: Json.ZkappCommand, privateKey: Json.PrivateKey): Signed<Json.ZkappCommand>;
     /**
+     * Computes the commitment and full commitment of a zkApp transaction from
+     * the mina-signer wrapper input — the same `{ feePayer, zkappCommand }`
+     * shape accepted by {@link signZkappCommand}.
+     *
+     * Validates the fee payer (minimum-fee check, memo length, non-negative
+     * fee/nonce/validUntil) and normalizes the memo before computing
+     * commitments.
+     */
+    getZkappCommandCommitments({ feePayer: feePayer_, zkappCommand }: Json.ZkappCommand): {
+        commitment: bigint;
+        fullCommitment: bigint;
+    };
+    /**
+     * Computes the commitment and full commitment of a zkApp transaction from a
+     * fully-formed `TransactionJson.ZkappCommand` — the shape produced by
+     * `tx.toJSON()` (after `JSON.parse`).
+     *
+     * Skips fee-payer validation: the input is assumed to be well-formed.
+     * The protocol minimum fee is not enforced here — the network will reject
+     * a too-low fee on submission.
+     */
+    getZkappCommandCommitmentsFromJSON(zkappCommand: TransactionJson.ZkappCommand): {
+        commitment: bigint;
+        fullCommitment: bigint;
+    };
+    /**
      * Verifies a signed zkApp transaction.
      *
      * @param signedZkappCommand A signed zkApp transaction
@@ -211,16 +239,7 @@ declare class Client {
         network_identifier: {
             blockchain: string;
             network: Json.NetworkId;
-        }; /**
-         * Converts a private key that is out of the domain of the Pallas curve to a private key in base58 format that is in the domain by taking the modulus of the private key.
-         * This is done to keep backwards compatibility with the previous version of the [client_sdk](https://www.npmjs.com/package/@o1labs/client-sdk), which did the same thing when converting a private key to base58.
-         * @param keyBase58 - The private key that is out of the domain of the Pallas curve
-         * @returns The private key that is in the domain of the Pallas curve
-         * @remarks
-         * This function is particularly useful when migrating old keys to be used by the current [mina-signer](https://www.npmjs.com/package/mina-signer) library,
-         * which may reject keys that do not fit the domain of the Pallas curve, by performing a modulus operation on the key, it ensures that keys
-         * from the older client_sdk can be made compatible.
-         */
+        };
         unsigned_transaction: string;
         signatures: {
             hex_bytes: string;

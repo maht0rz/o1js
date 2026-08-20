@@ -1,13 +1,10 @@
 import type { Wasm, RustConversion } from '../bindings.js';
-import { type WasmFpSrs, type WasmFqSrs } from '../../compiled/node_bindings/plonk_wasm.cjs';
+import { type WasmFpSrs, type WasmFqSrs } from '../../compiled/node_bindings/kimchi_wasm.cjs';
 import { PolyComm } from './kimchi-types.js';
-import { type Cache } from '../../../lib/proof-system/cache.js';
 import { MlArray } from '../../../lib/ml/base.js';
-export { srs, setSrsCache, unsetSrsCache };
+export { srs };
 type WasmSrs = WasmFpSrs | WasmFqSrs;
-declare function setSrsCache(c: Cache): void;
-declare function unsetSrsCache(): void;
-declare function srs(wasm: Wasm, conversion: RustConversion): {
+declare function srs(wasm: Wasm, conversion: RustConversion<'wasm'>): {
     fp: {
         /**
          * returns existing stored SRS or falls back to creating a new one

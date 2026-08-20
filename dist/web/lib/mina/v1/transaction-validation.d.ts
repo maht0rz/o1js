@@ -2,16 +2,16 @@ import type { NetworkId } from '../../../mina-signer/src/types.js';
 import { AccountUpdate, ZkappCommand, ZkappPublicInput } from './account-update.js';
 import type { Account } from './account.js';
 import type { NetworkValue } from './precondition.js';
-export { defaultNetworkState, filterGroups, getEvents as getTotalTimeRequired, reportGetAccountError, verifyAccountUpdate, verifyTransactionLimits, };
+export { defaultNetworkState, filterGroups, getSegmentsAndEvents, reportGetAccountError, verifyAccountUpdate, verifyTransactionLimits, };
 declare function reportGetAccountError(publicKey: string, tokenId: string): string;
 declare function defaultNetworkState(): NetworkValue;
 declare function verifyTransactionLimits({ accountUpdates }: ZkappCommand): void;
-declare function getEvents(accountUpdates: AccountUpdate[]): {
+declare function getSegmentsAndEvents(accountUpdates: AccountUpdate[]): {
     eventElements: {
         events: number;
         actions: number;
     };
-    authTypes: {
+    segments: {
         signedPair: number;
         signedSingle: number;
         proof: number;

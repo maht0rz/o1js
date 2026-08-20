@@ -1,15 +1,15 @@
-import { Permissions } from './permissions.js';
-import { StateValues } from './state.js';
+import { TokenSymbol } from '../../../lib/provable/crypto/poseidon.js';
 import { VerificationKey } from '../../proof-system/verification-key.js';
 import { Bool } from '../../provable/bool.js';
-import { Field } from '../../provable/field.js';
-import { UInt64, UInt32 } from '../../provable/int.js';
-import { Provable } from '../../provable/provable.js';
 import { PublicKey } from '../../provable/crypto/signature.js';
+import { Field } from '../../provable/field.js';
+import { UInt32, UInt64 } from '../../provable/int.js';
+import { Provable } from '../../provable/provable.js';
 import { Unconstrained } from '../../provable/types/unconstrained.js';
-import { TokenSymbol } from '../../../lib/provable/crypto/poseidon.js';
 import { TokenId, ZkappUri } from './core.js';
-export { AccountId, AccountTiming, AccountIdSet, Account, AccountIdMap };
+import { Permissions } from './permissions.js';
+import { StateValues } from './state.js';
+export { Account, AccountId, AccountIdMap, AccountIdSet, AccountTiming };
 function accountIdKeys(accountId) {
     return {
         publicKey: accountId.publicKey.toBase58(),
@@ -96,7 +96,7 @@ class AccountTiming {
     }
     minimumBalanceAtSlot(globalSlot) {
         // TODO: implement the provable friendly version of this function
-        // const beforeVestingCliff = globalSlot.lessThan(this.cliffTime);
+        // const beforeVestingCliff = globalSlot.lessThan(this.cliffTime); // Note that the cliff time must start at the current slot
         // Provable.if(
         //   beforeVestingCliff,
         //   UInt64,

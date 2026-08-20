@@ -1,6 +1,6 @@
-import { Bool } from '../../../provable/wrapped.js';
-import { UInt64 } from '../../../provable/int.js';
 import { PublicKey } from '../../../provable/crypto/signature.js';
+import { UInt64 } from '../../../provable/int.js';
+import { Bool } from '../../../provable/wrapped.js';
 import { AccountUpdate, AccountUpdateForest, AccountUpdateTree } from '../account-update.js';
 import { DeployArgs, SmartContract } from '../zkapp.js';
 export { TokenContract };

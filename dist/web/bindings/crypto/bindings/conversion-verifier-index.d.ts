@@ -1,8 +1,8 @@
-import type { WasmFpPlonkVerifierIndex, WasmFpShifts, WasmFqPlonkVerifierIndex, WasmFqShifts } from '../../compiled/node_bindings/plonk_wasm.cjs';
-import type * as wasmNamespace from '../../compiled/node_bindings/plonk_wasm.cjs';
 import { MlArray } from '../../../lib/ml/base.js';
-import { Field, VerifierIndex } from './kimchi-types.js';
+import type * as wasmNamespace from '../../compiled/node_bindings/kimchi_wasm.cjs';
+import type { WasmFpPlonkVerifierIndex, WasmFpShifts, WasmFqPlonkVerifierIndex, WasmFqShifts } from '../../compiled/node_bindings/kimchi_wasm.cjs';
 import { ConversionCores } from './conversion-core.js';
+import { Field, VerifierIndex } from './kimchi-types.js';
 export { verifierIndexConversion };
 type wasm = typeof wasmNamespace;
 type WasmShifts = WasmFpShifts | WasmFqShifts;

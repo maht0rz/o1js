@@ -1,8 +1,8 @@
-import type { WasmFpProverProof, WasmFqProverProof } from '../../compiled/node_bindings/plonk_wasm.cjs';
-import type * as wasmNamespace from '../../compiled/node_bindings/plonk_wasm.cjs';
-import type { ProofWithPublic, RuntimeTable, RuntimeTableCfg, LookupTable } from './kimchi-types.js';
 import { MlArray } from '../../../lib/ml/base.js';
+import type * as wasmNamespace from '../../compiled/node_bindings/kimchi_wasm.cjs';
+import type { WasmFpProverProof, WasmFqProverProof } from '../../compiled/node_bindings/kimchi_wasm.cjs';
 import { ConversionCores } from './conversion-core.js';
+import type { LookupTable, ProofWithPublic, RuntimeTable, RuntimeTableCfg } from './kimchi-types.js';
 export { proofConversion };
 type wasm = typeof wasmNamespace;
 type WasmProverProof = WasmFpProverProof | WasmFqProverProof;

@@ -12,6 +12,7 @@ export type NetworkId = 'mainnet' | 'devnet' | 'testnet' | {
 export declare const NetworkId: {
     toString(network: NetworkId): string;
 };
+export type Era = 'mesa' | 'berkeley';
 export type Keypair = {
     readonly privateKey: PrivateKey;
     readonly publicKey: PublicKey;

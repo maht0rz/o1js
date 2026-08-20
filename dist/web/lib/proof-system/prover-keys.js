@@ -1,7 +1,15 @@
+/**
+ * This file provides helpers to
+ * - encode and decode all 4 kinds of snark keys to/from bytes
+ * - create a header which is passed to the `Cache` so that it can figure out where and if to read from cache
+ *
+ * The inputs are `SnarkKeyHeader` and `SnarkKey`, which are OCaml tagged enums defined in pickles_bindings.ml
+ */
 import { Pickles, wasm } from '../../bindings.js';
+// TODO: include conversion bundle to decide between wasm and napi conversion
 import { getRustConversion } from '../../bindings/crypto/bindings.js';
 import { cacheHeaderVersion } from './cache.js';
-export { parseHeader, encodeProverKey, decodeProverKey };
+export { decodeProverKey, encodeProverKey, parseHeader };
 // there are 4 types of snark keys in Pickles which we all handle at once
 var KeyType;
 (function (KeyType) {
@@ -60,8 +68,7 @@ function encodeProverKey(value) {
     switch (value[0]) {
         case KeyType.StepProvingKey: {
             let index = value[1][1];
-            let encoded = wasm.caml_pasta_fp_plonk_index_encode(index);
-            return encoded;
+            return wasm.caml_pasta_fp_plonk_index_encode(index);
         }
         case KeyType.StepVerificationKey: {
             let vkMl = value[1];
@@ -72,8 +79,7 @@ function encodeProverKey(value) {
         }
         case KeyType.WrapProvingKey: {
             let index = value[1][1];
-            let encoded = wasm.caml_pasta_fq_plonk_index_encode(index);
-            return encoded;
+            return wasm.caml_pasta_fq_plonk_index_encode(index);
         }
         case KeyType.WrapVerificationKey: {
             let vk = value[1];
@@ -91,8 +97,7 @@ function encodeProverKey(value) {
 function decodeProverKey(header, bytes) {
     switch (header[0]) {
         case KeyType.StepProvingKey: {
-            let srs = Pickles.loadSrsFp();
-            let index = wasm.caml_pasta_fp_plonk_index_decode(bytes, srs);
+            let index = wasm.caml_pasta_fp_plonk_index_decode(bytes, Pickles.loadSrsFp());
             let cs = header[1][4];
             return [KeyType.StepProvingKey, [0, index, cs]];
         }
@@ -105,8 +110,7 @@ function decodeProverKey(header, bytes) {
             return [KeyType.StepVerificationKey, vkMl];
         }
         case KeyType.WrapProvingKey: {
-            let srs = Pickles.loadSrsFq();
-            let index = wasm.caml_pasta_fq_plonk_index_decode(bytes, srs);
+            let index = wasm.caml_pasta_fq_plonk_index_decode(bytes, Pickles.loadSrsFq());
             let cs = header[1][3];
             return [KeyType.WrapProvingKey, [0, index, cs]];
         }

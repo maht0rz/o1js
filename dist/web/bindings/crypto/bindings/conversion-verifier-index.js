@@ -135,7 +135,9 @@ function verifierIndexConversionPerField(wasm, core, { Domain, VerificationEvals
         },
         shiftsFromRust(s) {
             let shifts = [s.s0, s.s1, s.s2, s.s3, s.s4, s.s5, s.s6];
-            s.free();
+            if (typeof s.free === 'function') {
+                s.free();
+            }
             return [0, ...shifts.map(fieldFromRust)];
         },
         verifierIndexToRust(vk) {

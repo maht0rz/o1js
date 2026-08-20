@@ -1,7 +1,8 @@
-import { mocks } from '../../../bindings/crypto/constants.js';
-import { AccountUpdate, PrivateKey, Field, Bool, Mina, Int64, Types } from '../../../index.js';
-import { Test } from '../../../bindings.js';
+import { __decorate, __metadata } from "tslib";
 import { expect } from 'expect';
+import { Test } from '../../../bindings.js';
+import { mocks } from '../../../bindings/crypto/constants.js';
+import { AccountUpdate, Bool, Field, Int64, Mina, PrivateKey, SmartContract, State, Types, method, state, } from '../../../index.js';
 let mlTest = await Test();
 let address = PrivateKey.random().toPublicKey();
 function createAccountUpdate() {
@@ -96,5 +97,82 @@ function createAccountUpdateWithMayUseToken(mayUseToken) {
         inheritFromParent: Bool(false),
     });
     expect(AccountUpdate.MayUseToken.isNo(accountUpdate).toBoolean()).toEqual(true);
+}
+// non-proof account update limits on actual transaction
+{
+    let Local = await Mina.LocalBlockchain({ proofsEnabled: false });
+    Mina.setActiveInstance(Local);
+    const [feePayer] = Local.testAccounts;
+    // 31 signed AUs + fee payer = 32 non-proof items = 16 pairs = 16 segments (max)
+    let tx = await Mina.transaction(feePayer, async () => {
+        for (let i = 0; i < 31; i++)
+            AccountUpdate.createSigned(feePayer);
+    });
+    await tx.sign([feePayer.key]).send();
+    // 32 signed AUs + fee payer = 33 non-proof items = 17 segments (exceeds limit)
+    tx = await Mina.transaction(feePayer, async () => {
+        for (let i = 0; i < 32; i++)
+            AccountUpdate.createSigned(feePayer);
+    });
+    await expect(tx.sign([feePayer.key]).send()).rejects.toThrow(/too many segments/);
+}
+// proof account update limits
+{
+    class SimpleContract extends SmartContract {
+        constructor() {
+            super(...arguments);
+            this.value = State();
+        }
+        async setValue(v) {
+            this.value.set(v);
+        }
+    }
+    __decorate([
+        state(Field),
+        __metadata("design:type", Object)
+    ], SimpleContract.prototype, "value", void 0);
+    __decorate([
+        method,
+        __metadata("design:type", Function),
+        __metadata("design:paramtypes", [Field]),
+        __metadata("design:returntype", Promise)
+    ], SimpleContract.prototype, "setValue", null);
+    let Local = await Mina.LocalBlockchain({ proofsEnabled: true });
+    Mina.setActiveInstance(Local);
+    const [feePayer] = Local.testAccounts;
+    await SimpleContract.compile();
+    // deploy 16 contracts
+    const contracts = Array.from({ length: 16 }, () => {
+        const key = Mina.TestPublicKey.random();
+        return { key, contract: new SimpleContract(key) };
+    });
+    // need to split into two batches because of transaction size limits
+    for (let i = 0; i < 2; i++) {
+        const batch = contracts.slice(i * 8, (i + 1) * 8);
+        let tx = await Mina.transaction(feePayer, async () => {
+            AccountUpdate.fundNewAccount(feePayer, 8);
+            for (const { contract } of batch)
+                await contract.deploy();
+        });
+        await tx.sign([feePayer.key, ...batch.map((c) => c.key.key)]).send();
+    }
+    // 15 proof AUs + fee payer (1 single) = 16 segments (max)
+    let tx = await Mina.transaction(feePayer, async () => {
+        for (let i = 0; i < 15; i++)
+            await contracts[i].contract.setValue(Field(i));
+    });
+    // fee payer counts as a seperate account update, hence 16 account updates
+    expect(tx.transaction.accountUpdates.length + 1 === 16);
+    await tx.prove();
+    await tx.sign([feePayer.key]).send();
+    // 16 proof AUs + fee payer (1 single) = 17 segments (exceeds limit)
+    tx = await Mina.transaction(feePayer, async () => {
+        for (let i = 0; i < 16; i++)
+            await contracts[i].contract.setValue(Field(i));
+    });
+    // fee payer counts as a seperate account update, hence 17 account updates
+    expect(tx.transaction.accountUpdates.length + 1 === 17);
+    await tx.prove();
+    await expect(tx.sign([feePayer.key]).send()).rejects.toThrow(/too many segments/);
 }
 //# sourceMappingURL=account-update.unit-test.js.map

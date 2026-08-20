@@ -61,7 +61,7 @@ describe('Test default network', () => {
     });
     it('More than limit account update', async () => {
         let txn = await Mina.transaction(async () => {
-            for (let index = 0; index < TransactionLimits.MAX_ZKAPP_SEGMENT_PER_TRANSACTION + 1; index++) {
+            for (let index = 0; index < TransactionLimits.MAX_ZKAPP_SEGMENT_PER_TRANSACTION * 2; index++) {
                 const accountUpdateBob = AccountUpdate.create(bobAccount, Field.from(index));
                 accountUpdateBob.account.balance.requireEquals(UInt64.zero);
                 accountUpdateBob.balance.addInPlace(UInt64.one);
@@ -101,7 +101,7 @@ describe('Test enforced network', () => {
     });
     it('More than limit account update', async () => {
         let txn = await Mina.transaction(async () => {
-            for (let index = 0; index < TransactionLimits.MAX_ZKAPP_SEGMENT_PER_TRANSACTION + 1; index++) {
+            for (let index = 0; index < TransactionLimits.MAX_ZKAPP_SEGMENT_PER_TRANSACTION * 2; index++) {
                 const accountUpdateBob = AccountUpdate.create(bobAccount, Field.from(index));
                 accountUpdateBob.account.balance.requireEquals(UInt64.zero);
                 accountUpdateBob.balance.addInPlace(UInt64.one);
@@ -141,7 +141,7 @@ describe('Test unlimited network', () => {
     });
     it('More than limit account update', async () => {
         let txn = await Mina.transaction(async () => {
-            for (let index = 0; index < TransactionLimits.MAX_ZKAPP_SEGMENT_PER_TRANSACTION + 1; index++) {
+            for (let index = 0; index < TransactionLimits.MAX_ZKAPP_SEGMENT_PER_TRANSACTION * 2; index++) {
                 const accountUpdateBob = AccountUpdate.create(bobAccount, Field.from(index));
                 accountUpdateBob.account.balance.requireEquals(UInt64.zero);
                 accountUpdateBob.balance.addInPlace(UInt64.one);
@@ -228,7 +228,7 @@ describe('Test network with headers', () => {
     });
     it('More than limit account update', async () => {
         let txn = await Mina.transaction(async () => {
-            for (let index = 0; index < TransactionLimits.MAX_ZKAPP_SEGMENT_PER_TRANSACTION + 1; index++) {
+            for (let index = 0; index < TransactionLimits.MAX_ZKAPP_SEGMENT_PER_TRANSACTION * 2; index++) {
                 const accountUpdateBob = AccountUpdate.create(bobAccount, Field.from(index));
                 accountUpdateBob.account.balance.requireEquals(UInt64.zero);
                 accountUpdateBob.balance.addInPlace(UInt64.one);

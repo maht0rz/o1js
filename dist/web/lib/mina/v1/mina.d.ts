@@ -26,8 +26,29 @@ declare function Network(options: {
  * Throws an error if not inside a transaction, or the sender wasn't passed in.
  */
 declare function sender(): Types.PublicKey;
-declare function waitForFunding(address: string, headers?: HeadersInit): Promise<void>;
+declare function waitForFunding(address: string, network: string, headers?: HeadersInit): Promise<void>;
 /**
  * Requests the [testnet faucet](https://faucet.minaprotocol.com/api/v1/faucet) to fund a public key.
+ *
+ * Solves a ZK captcha challenge (sum-to-100 proof) before submitting the funding request.
+ * The first call compiles the ZK circuit (~30-60s), subsequent calls reuse the cached circuit.
+ *
+ * @param pub - The public key to fund.
+ * @param network - The network to fund on: `devnet` (default) or `mesa`.
+ * @param headers - Optional headers passed to `fetchAccount` when polling for funding confirmation.
+ *
+ * @throws `rate-limit` — The address has already been funded on this network (one funding per address).
+ * @throws `rate-limit-ip` — Too many faucet requests from this IP (max 5/hour, 10/day).
+ * @throws `forbidden` — The faucet rejected the request origin.
+ * @throws `challenge-required` — The ZK challenge proof was invalid or expired.
+ *
+ * @example
+ * ```ts
+ * // Fund on Devnet (default)
+ * await Mina.faucet(myPublicKey);
+ *
+ * // Fund on Mesa
+ * await Mina.faucet(myPublicKey, 'mesa');
+ * ```
  */
 declare function faucet(pub: PublicKey, network?: string, headers?: HeadersInit): Promise<void>;

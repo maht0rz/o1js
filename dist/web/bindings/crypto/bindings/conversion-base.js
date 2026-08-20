@@ -1,6 +1,6 @@
 import { bigintToBytes32, bytesToBigint32 } from '../bigint-helpers.js';
 import { Infinity } from './curve.js';
-export { fieldToRust, fieldFromRust, fieldsToRustFlat, fieldsFromRustFlat, maybeFieldToRust, affineToRust, affineFromRust, };
+export { affineFromRust, affineToRust, fieldFromRust, fieldToRust, fieldsFromRustFlat, fieldsToRustFlat, maybeFieldToRust, };
 // TODO: Hardcoding this is a little brittle
 // TODO read from field
 const fieldSizeBytes = 32;
@@ -9,7 +9,10 @@ function fieldToRust([, x], dest = new Uint8Array(32)) {
     return bigintToBytes32(x, dest);
 }
 function fieldFromRust(x) {
-    return [0, bytesToBigint32(x)];
+    // Some native bindings may return byte arrays as plain `number[]`.
+    // Normalize so downstream code can rely on `Uint8Array` APIs.
+    let bytes = x instanceof Uint8Array ? x : Uint8Array.from(x);
+    return [0, bytesToBigint32(bytes)];
 }
 function fieldsToRustFlat([, ...fields]) {
     let n = fields.length;
@@ -20,13 +23,20 @@ function fieldsToRustFlat([, ...fields]) {
     return flatBytes;
 }
 function fieldsFromRustFlat(fieldBytes) {
+    // Some native bindings may return byte arrays as plain `number[]`.
+    fieldBytes =
+        fieldBytes instanceof Uint8Array
+            ? fieldBytes
+            : Uint8Array.from(fieldBytes);
     let n = fieldBytes.length / fieldSizeBytes;
     if (!Number.isInteger(n)) {
         throw Error('fieldsFromRustFlat: invalid bytes');
     }
     let fields = Array(n);
     for (let i = 0, offset = 0; i < n; i++, offset += fieldSizeBytes) {
-        let fieldView = new Uint8Array(fieldBytes.buffer, offset, fieldSizeBytes);
+        // Use `subarray()` so we slice relative to the view (works for `Buffer` too),
+        // and avoid relying on `byteOffset` alignment/pooling details.
+        let fieldView = fieldBytes.subarray(offset, offset + fieldSizeBytes);
         fields[i] = fieldFromRust(fieldView);
     }
     return [0, ...fields];
@@ -46,7 +56,6 @@ function affineFromRust(pt) {
         return [0, [0, x, y]];
     }
 }
-const tmpBytes = new Uint8Array(32);
 function affineToRust(pt, makeAffine) {
     let res = makeAffine();
     if (pt === Infinity) {
@@ -54,10 +63,8 @@ function affineToRust(pt, makeAffine) {
     }
     else {
         let [, [, x, y]] = pt;
-        // we can use the same bytes here every time,
-        // because x and y setters copy the bytes into wasm memory
-        res.x = fieldToRust(x, tmpBytes);
-        res.y = fieldToRust(y, tmpBytes);
+        res.x = fieldToRust(x);
+        res.y = fieldToRust(y);
     }
     return res;
 }

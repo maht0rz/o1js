@@ -12,7 +12,7 @@ import { cloneCircuitValue } from '../../provable/types/struct.js';
 import { Field } from '../../provable/wrapped.js';
 import { AccountUpdate, TokenId, ZkappPublicInput, dummySignature, } from './account-update.js';
 import { TransactionLimits } from './constants.js';
-export { defaultNetworkState, filterGroups, getEvents as getTotalTimeRequired, reportGetAccountError, verifyAccountUpdate, verifyTransactionLimits, };
+export { defaultNetworkState, filterGroups, getSegmentsAndEvents, reportGetAccountError, verifyAccountUpdate, verifyTransactionLimits, };
 function reportGetAccountError(publicKey, tokenId) {
     if (tokenId === TokenId.toBase58(TokenId.default)) {
         return `getAccount: Could not find account for public key ${publicKey}`;
@@ -40,14 +40,26 @@ function defaultNetworkState() {
     };
 }
 function verifyTransactionLimits({ accountUpdates }) {
-    let { eventElements } = getEvents(accountUpdates);
-    const segments = accountUpdates.length;
-    let isWithinSegmentLimit = segments <= TransactionLimits.MAX_ZKAPP_SEGMENT_PER_TRANSACTION;
+    let { eventElements, segments } = getSegmentsAndEvents(accountUpdates);
+    /*
+    formula used to calculate how expensive a zkapp transaction is
+  
+    np := proof
+    n2 := signedPair
+    n1 := signedSingle
+  
+    np + n2 + n1 < 16
+    */
+    let totalSegments = segments.proof + segments.signedPair + segments.signedSingle;
+    let isWithinSegmentLimit = totalSegments <= TransactionLimits.MAX_ZKAPP_SEGMENT_PER_TRANSACTION;
     let isWithinEventsLimit = eventElements.events <= TransactionLimits.MAX_EVENT_ELEMENTS;
     let isWithinActionsLimit = eventElements.actions <= TransactionLimits.MAX_ACTION_ELEMENTS;
     let error = '';
     if (!isWithinSegmentLimit) {
-        error += `Error: the transaction contains too many segments. Try reducing the number of accountUpdates attached to the transaction. The maximum number of updates per transaction is ${TransactionLimits.MAX_ZKAPP_SEGMENT_PER_TRANSACTION}`;
+        error += `Error: the transaction contains too many segments. Try reducing the number of accountUpdates attached to the transaction. The maximum number of segments per transaction is ${TransactionLimits.MAX_ZKAPP_SEGMENT_PER_TRANSACTION}
+    , but your transaction requires ${totalSegments}.\n\n
+    The number of segments is calculated based on the authorizations required by each account update in the transaction.
+    See https://github.com/MinaProtocol/MIPs/pull/30 for more details.\n\n`;
     }
     if (!isWithinEventsLimit) {
         error += `Error: The account updates in your transaction are trying to emit too much event data. The maximum allowed number of field elements in events is ${TransactionLimits.MAX_EVENT_ELEMENTS}, but you tried to emit ${eventElements.events}.\n\n`;
@@ -58,7 +70,7 @@ function verifyTransactionLimits({ accountUpdates }) {
     if (error)
         throw Error('Error during transaction sending:\n\n' + error);
 }
-function getEvents(accountUpdates) {
+function getSegmentsAndEvents(accountUpdates) {
     let eventElements = { events: 0, actions: 0 };
     let authKinds = accountUpdates.map((update) => {
         eventElements.events += countEventElements(update.body.events);
@@ -76,8 +88,8 @@ function getEvents(accountUpdates) {
         isProved: false,
         verificationKeyHash: '',
     });
-    let authTypes = filterGroups(authKinds);
-    return { eventElements, authTypes, totalAccountUpdates: accountUpdates.length };
+    let segments = filterGroups(authKinds);
+    return { eventElements, segments, totalAccountUpdates: accountUpdates.length };
 }
 function countEventElements({ data }) {
     return data.reduce((acc, ev) => acc + ev.length, 0);

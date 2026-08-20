@@ -56,7 +56,7 @@ const MlOption = Object.assign(function MlOption(x) {
         return map(option[1]);
     },
     mapTo(option, map) {
-        if (option === undefined)
+        if (option === undefined || option === null)
             return 0;
         return [0, map(option)];
     },

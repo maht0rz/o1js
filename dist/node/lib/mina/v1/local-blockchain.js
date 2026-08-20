@@ -12,7 +12,7 @@ import { invalidTransactionError } from './errors.js';
 import { defaultNetworkConstants, } from './mina-instance.js';
 import { SimpleLedger } from './transaction-logic/ledger.js';
 import { defaultNetworkState, reportGetAccountError, verifyAccountUpdate, verifyTransactionLimits, } from './transaction-validation.js';
-import { createIncludedTransaction, createRejectedTransaction, createTransaction, toPendingTransactionPromise, toTransactionPromise, } from './transaction.js';
+import { createRejectedTransaction, createTransaction, toPendingTransactionPromise, toTransactionPromise, } from './transaction.js';
 export { LocalBlockchain, TestPublicKey };
 function TestPublicKey(key) {
     return Object.assign(PublicKey.fromPrivateKey(key), { key });
@@ -205,11 +205,13 @@ async function LocalBlockchain({ proofsEnabled = true, enforceTransactionLimits 
                     }
                     return pendingTransaction;
                 };
+                // Track the block height at which this transaction was included
+                const inclusionBlockHeight = Number(networkState.blockchainLength.toBigint());
                 const safeWait = async (_options) => {
                     if (status === 'rejected') {
                         return createRejectedTransaction(pendingTransaction, pendingTransaction.errors);
                     }
-                    return createIncludedTransaction(pendingTransaction);
+                    return createLocalIncludedTransaction(pendingTransaction, inclusionBlockHeight, () => Number(networkState.blockchainLength.toBigint()));
                 };
                 return {
                     ...pendingTransaction,
@@ -294,6 +296,66 @@ async function LocalBlockchain({ proofsEnabled = true, enforceTransactionLimits 
         resetProofsEnabled() {
             this.proofsEnabled = originalProofsEnabled;
         },
+    };
+}
+/**
+ * Default finality threshold of 15 blocks provides 99.9% confidence.
+ * @see https://docs.minaprotocol.com/mina-protocol/lifecycle-of-a-payment
+ */
+const DEFAULT_FINALITY_THRESHOLD = 15;
+/**
+ * Creates an IncludedTransaction with LocalBlockchain-specific depth calculation.
+ * Unlike the network version which fetches from GraphQL, this calculates depth
+ * based on the current local blockchain state.
+ */
+function createLocalIncludedTransaction(pendingTx, inclusionBlockHeight, getCurrentBlockHeight) {
+    const safeGetDepth = async (options) => {
+        const finalityThreshold = options?.finalityThreshold ?? DEFAULT_FINALITY_THRESHOLD;
+        const currentBlockHeight = getCurrentBlockHeight();
+        // Depth should never be negative (safeguard against edge cases)
+        const depth = Math.max(0, currentBlockHeight - inclusionBlockHeight);
+        return {
+            depth,
+            inclusionBlockHeight,
+            currentBlockHeight,
+            isFinalized: depth >= finalityThreshold,
+            finalityThreshold,
+        };
+    };
+    const getDepth = async (options) => {
+        const result = await safeGetDepth(options);
+        // For LocalBlockchain, this should never be null
+        return result;
+    };
+    const waitForFinality = async (options) => {
+        const finalityThreshold = options?.finalityThreshold ?? DEFAULT_FINALITY_THRESHOLD;
+        const interval = options?.interval ?? 60000;
+        const maxAttempts = options?.maxAttempts ?? 30;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const info = await safeGetDepth({ finalityThreshold });
+            if (info) {
+                options?.onProgress?.(info);
+                if (info.isFinalized) {
+                    return info;
+                }
+            }
+            if (attempt < maxAttempts - 1) {
+                await new Promise((resolve) => setTimeout(resolve, interval));
+            }
+        }
+        throw Error(`Transaction ${pendingTx.hash} did not reach finality after ${maxAttempts} attempts (threshold: ${finalityThreshold} blocks).`);
+    };
+    return {
+        status: 'included',
+        transaction: pendingTx.transaction,
+        toJSON: pendingTx.toJSON,
+        toPretty: pendingTx.toPretty,
+        hash: pendingTx.hash,
+        data: pendingTx.data,
+        inclusionBlockHeight,
+        getDepth,
+        safeGetDepth,
+        waitForFinality,
     };
 }
 // assert type compatibility without preventing LocalBlockchain to return additional properties / methods

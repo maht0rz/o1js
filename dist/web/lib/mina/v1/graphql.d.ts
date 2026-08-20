@@ -1,8 +1,8 @@
+import { Types } from '../../../bindings/mina-transaction/v1/types.js';
 import { UInt32 } from '../../provable/int.js';
 import { type ZkappCommand } from './account-update.js';
 import type { ActionStatesStringified } from './fetch.js';
-import { Types } from '../../../bindings/mina-transaction/v1/types.js';
-export { type EpochData, type LastBlockQueryResponse, type GenesisConstantsResponse, type FailureReasonResponse, type LastBlockQueryFailureCheckResponse, type FetchedAction, type FetchedBlock, type TransactionStatus, type TransactionStatusQueryResponse, type EventsQueryInputs, type EventQueryResponse, type ActionsQueryInputs, type ActionQueryResponse, type EventActionFilterOptions, type SendZkAppResponse, type FetchedAccount, type FetchedAccountResponse, type CurrentSlotResponse, getEventsQuery, getActionsQuery, sendZkappQuery, transactionStatusQuery, lastBlockQueryFailureCheck, accountQuery, currentSlotQuery, genesisConstantsQuery, lastBlockQuery, removeJsonQuotes, };
+export { accountQuery, currentSlotQuery, genesisConstantsQuery, getActionsQuery, getEventsQuery, lastBlockQuery, lastBlockQueryFailureCheck, removeJsonQuotes, sendZkappQuery, transactionStatusQuery, type ActionQueryResponse, type ActionsQueryInputs, type CurrentSlotResponse, type DepthOptions, type EpochData, type EventActionFilterOptions, type EventQueryResponse, type EventsQueryInputs, type FailureReasonResponse, type FetchedAccount, type FetchedAccountResponse, type FetchedAction, type FetchedBlock, type GenesisConstantsResponse, type LastBlockQueryFailureCheckResponse, type LastBlockQueryResponse, type SendZkAppResponse, type TransactionDepthInfo, type TransactionStatus, type TransactionStatusQueryResponse, };
 declare function removeJsonQuotes(json: string): string;
 type ActionsQueryInputs = {
     /** Public key of the ZkApp to which actions have been emitted */
@@ -121,6 +121,15 @@ type LastBlockQueryFailureCheckResponse = {
                 failureReason: FailureReasonResponse;
             }[];
         };
+        stateHash: string;
+        protocolState: {
+            consensusState: {
+                blockHeight: string;
+                epoch: string;
+                slotSinceGenesis: string;
+            };
+            previousStateHash: string;
+        };
     }[];
 };
 type FetchedBlock = {
@@ -184,6 +193,7 @@ type CurrentSlotResponse = {
         protocolState: {
             consensusState: {
                 slot: number;
+                slotSinceGenesis: number;
             };
         };
     }>;
@@ -199,6 +209,37 @@ type CurrentSlotResponse = {
 type TransactionStatus = 'INCLUDED' | 'PENDING' | 'UNKNOWN';
 type TransactionStatusQueryResponse = {
     transactionStatus: TransactionStatus;
+};
+/**
+ * Information about a transaction's depth (confirmation count) in the blockchain.
+ * Depth represents how many blocks have been built on top of the block containing the transaction.
+ *
+ * @see https://docs.minaprotocol.com/mina-protocol/lifecycle-of-a-payment
+ */
+type TransactionDepthInfo = {
+    /** Number of blocks built on top of the block containing the transaction (0 = just included) */
+    depth: number;
+    /** Block height at which the transaction was included */
+    inclusionBlockHeight: number;
+    /** Current block height of the chain */
+    currentBlockHeight: number;
+    /** Whether the transaction has reached finality (depth >= finalityThreshold) */
+    isFinalized: boolean;
+    /** The finality threshold used for this calculation */
+    finalityThreshold: number;
+};
+/**
+ * Options for querying transaction depth.
+ */
+type DepthOptions = {
+    /** Number of blocks to search for the transaction (default: 20) */
+    blockLength?: number;
+    /**
+     * Number of blocks required for finality (default: 15).
+     * Default of 15 blocks provides 99.9% confidence per Mina documentation.
+     * @see https://docs.minaprotocol.com/mina-protocol/lifecycle-of-a-payment
+     */
+    finalityThreshold?: number;
 };
 type SendZkAppResponse = {
     sendZkapp: {
@@ -262,4 +303,4 @@ declare const lastBlockQuery = "{\n  bestChain(maxLength: 1) {\n    protocolStat
 declare const lastBlockQueryFailureCheck: (length: number) => string;
 declare function sendZkappQuery(json: string): string;
 declare const accountQuery: (publicKey: string, tokenId: string) => string;
-declare const currentSlotQuery = "{\n    bestChain(maxLength: 1) {\n      protocolState {\n        consensusState {\n          slot\n        }\n      }\n    }\n}";
+declare const currentSlotQuery = "{\n    bestChain(maxLength: 1) {\n      protocolState {\n        consensusState {\n          slot\n          slotSinceGenesis\n        }\n      }\n    }\n}";

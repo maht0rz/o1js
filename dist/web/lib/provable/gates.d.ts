@@ -121,15 +121,11 @@ declare enum KimchiGateType {
     EndoMul = 5,
     EndoMulScalar = 6,
     Lookup = 7,
-    CairoClaim = 8,
-    CairoInstruction = 9,
-    CairoFlags = 10,
-    CairoTransition = 11,
-    RangeCheck0 = 12,
-    RangeCheck1 = 13,
-    ForeignFieldAdd = 14,
-    ForeignFieldMul = 15,
-    Xor16 = 16,
-    Rot64 = 17
+    RangeCheck0 = 8,
+    RangeCheck1 = 9,
+    ForeignFieldAdd = 10,
+    ForeignFieldMul = 11,
+    Xor16 = 12,
+    Rot64 = 13
 }
 declare function fieldVar(x: Field | FieldVar | bigint): FieldVar;

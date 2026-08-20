@@ -5,7 +5,7 @@ import type { Lookup } from './lookup.js';
 import type { MlArray, MlOption, MlTuple } from '../../../lib/ml/base.js';
 import type { OrInfinity } from './curve.js';
 import type { Field } from './field.js';
-import type { WasmFpSrs, WasmFqSrs } from '../../compiled/node_bindings/plonk_wasm.cjs';
+import type { WasmFpSrs, WasmFqSrs } from '../../compiled/node_bindings/kimchi_wasm.cjs';
 export { Field, OrInfinity, Wire, Gate, PolyComm, Domain, VerificationEvals, VerifierIndex, ScalarChallenge, RandomOracles, Oracles, ProverCommitments, OpeningProof, PointEvaluations, ProofEvaluations, RecursionChallenge, ProverProof, ProofWithPublic, LookupCommitments, RuntimeTableCfg, LookupTable, RuntimeTable, };
 type WasmSrs = WasmFpSrs | WasmFqSrs;
 type GateType = number;

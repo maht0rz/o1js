@@ -48,6 +48,9 @@ function SignableFromLayout(TypeMap, customTypes) {
         }
         if (typeData.type === 'array') {
             let arrayTypeData = typeData;
+            // treat missing/null array as empty — allows omitting optional array fields like appState
+            if (json == null)
+                return empty(arrayTypeData);
             return json.map((json) => fromJSON(arrayTypeData.inner, json));
         }
         if (typeData.type === 'option') {
@@ -83,7 +86,9 @@ function SignableFromLayout(TypeMap, customTypes) {
             let values = {};
             for (let i = 0; i < keys.length; i++) {
                 let typeEntry = entries[keys[i]];
-                values[keys[i]] = fromJSON(typeEntry, json[keys[i]]);
+                let v = json[keys[i]];
+                // missing key: use empty/default value for backwards compatibility
+                values[keys[i]] = v === undefined ? empty(typeEntry) : fromJSON(typeEntry, v);
             }
             return values;
         }

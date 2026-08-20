@@ -1,20 +1,14 @@
+import { srsCache as cache } from '../cache.js';
 import { withVersion, writeCache, readCache, } from '../../../lib/proof-system/cache.js';
 import { assert } from '../../../lib/util/errors.js';
 import { MlArray } from '../../../lib/ml/base.js';
 import { OrInfinity } from './curve.js';
-export { srs, setSrsCache, unsetSrsCache };
+export { srs };
 function empty() {
     return {};
 }
 const srsStore = { fp: empty(), fq: empty() };
 const CacheReadRegister = new Map();
-let cache;
-function setSrsCache(c) {
-    cache = c;
-}
-function unsetSrsCache() {
-    cache = undefined;
-}
 const srsVersion = 1;
 function cacheHeaderLagrange(f, domainSize) {
     let id = `lagrange-basis-${f}-${domainSize}`;
@@ -45,6 +39,15 @@ function srsPerField(f, wasm, conversion) {
     let createSrs = (s) => wasm[`caml_${f}_srs_create_parallel`](s);
     let getSrs = wasm[`caml_${f}_srs_get`];
     let setSrs = wasm[`caml_${f}_srs_set`];
+    let isEmptySrs = (srs) => {
+        try {
+            let points = getSrs(srs);
+            return points == null || points.length <= 1;
+        }
+        catch {
+            return true;
+        }
+    };
     let maybeLagrangeCommitment = wasm[`caml_${f}_srs_maybe_lagrange_commitment`];
     let lagrangeCommitment = (srs, domain_size, i) => wasm[`caml_${f}_srs_lagrange_commitment`](srs, domain_size, i);
     let lagrangeCommitmentsWholeDomainPtr = (srs, domain_size) => wasm[`caml_${f}_srs_lagrange_commitments_whole_domain_ptr`](srs, domain_size);
@@ -57,6 +60,10 @@ function srsPerField(f, wasm, conversion) {
          */
         create(size) {
             let srs = srsStore[f][size];
+            if (srs !== undefined && isEmptySrs(srs)) {
+                delete srsStore[f][size];
+                srs = undefined;
+            }
             if (srs === undefined) {
                 if (cache === undefined) {
                     // if there is no cache, create SRS in memory
@@ -71,7 +78,10 @@ function srsPerField(f, wasm, conversion) {
                         let jsonSrs = JSON.parse(new TextDecoder().decode(bytes));
                         let mlSrs = MlArray.mapTo(jsonSrs, OrInfinity.fromJSON);
                         let wasmSrs = conversion[f].pointsToRust(mlSrs);
-                        return setSrs(wasmSrs);
+                        let candidate = setSrs(wasmSrs);
+                        if (isEmptySrs(candidate))
+                            return undefined;
+                        return candidate;
                     });
                     if (srs === undefined) {
                         // not in cache
@@ -108,13 +118,19 @@ function srsPerField(f, wasm, conversion) {
                     if (didRead !== true) {
                         // not in cache
                         if (cache.canWrite) {
-                            // TODO: this code path will throw on the web since `caml_${f}_srs_get_lagrange_basis` is not properly implemented
-                            // using a writable cache in the browser seems to be fairly uncommon though, so it's at least an 80/20 solution
-                            let wasmComms = getLagrangeBasis(srs, domainSize);
-                            let mlComms = conversion[f].polyCommsFromRust(wasmComms);
-                            let comms = polyCommsToJSON(mlComms);
-                            let bytes = new TextEncoder().encode(JSON.stringify(comms));
-                            writeCache(cache, header, bytes);
+                            try {
+                                let wasmComms = getLagrangeBasis(srs, domainSize);
+                                let mlComms = conversion[f].polyCommsFromRust(wasmComms);
+                                let comms = polyCommsToJSON(mlComms);
+                                let bytes = new TextEncoder().encode(JSON.stringify(comms));
+                                writeCache(cache, header, bytes);
+                            }
+                            catch {
+                                // getLagrangeBasis is unavailable in web workers (WasmVector
+                                // can't cross the SharedArrayBuffer channel). Fall back to
+                                // in-memory computation.
+                                lagrangeCommitment(srs, domainSize, i);
+                            }
                         }
                         else {
                             lagrangeCommitment(srs, domainSize, i);
@@ -133,14 +149,16 @@ function srsPerField(f, wasm, conversion) {
                 let didRead = readCacheLazy(cache, header, conversion, f, srs, domainSize, setLagrangeBasis);
                 // only proceed for entries we haven't written to the cache yet
                 if (didRead !== true) {
-                    // same code as above - write the lagrange basis to the cache if it wasn't there already
-                    // currently we re-generate the basis via `getLagrangeBasis` - we could derive this from the
-                    // already existing `commitment` instead, but this is simpler and the performance impact is negligible
-                    let wasmComms = getLagrangeBasis(srs, domainSize);
-                    let mlComms = conversion[f].polyCommsFromRust(wasmComms);
-                    let comms = polyCommsToJSON(mlComms);
-                    let bytes = new TextEncoder().encode(JSON.stringify(comms));
-                    writeCache(cache, header, bytes);
+                    try {
+                        let wasmComms = getLagrangeBasis(srs, domainSize);
+                        let mlComms = conversion[f].polyCommsFromRust(wasmComms);
+                        let comms = polyCommsToJSON(mlComms);
+                        let bytes = new TextEncoder().encode(JSON.stringify(comms));
+                        writeCache(cache, header, bytes);
+                    }
+                    catch {
+                        // getLagrangeBasis unavailable in web workers — skip cache write.
+                    }
                 }
             }
             return conversion[f].polyCommFromRust(commitment);

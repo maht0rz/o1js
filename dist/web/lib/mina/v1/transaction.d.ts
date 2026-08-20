@@ -6,10 +6,10 @@ import { UInt64 } from '../../provable/int.js';
 import { Field } from '../../provable/wrapped.js';
 import { ZkappCommand, ZkappPublicInput } from './account-update.js';
 import { Account } from './account.js';
-import { type SendZkAppResponse } from './graphql.js';
+import { type DepthOptions, type SendZkAppResponse, type TransactionDepthInfo } from './graphql.js';
 import { type FeePayerSpec } from './mina-instance.js';
 import { type FetchMode } from './transaction-context.js';
-export { Transaction, createIncludedTransaction, createRejectedTransaction, createTransaction, getAccount, newTransaction, sendTransaction, toPendingTransactionPromise, toTransactionPromise, transaction, type IncludedTransaction, type PendingTransaction, type PendingTransactionPromise, type PendingTransactionStatus, type RejectedTransaction, type TransactionPromise, };
+export { Transaction, createIncludedTransaction, createRejectedTransaction, createTransaction, getAccount, newTransaction, sendTransaction, toPendingTransactionPromise, toTransactionPromise, transaction, type IncludedTransaction, type PendingTransaction, type PendingTransactionPromise, type PendingTransactionStatus, type RejectedTransaction, type TransactionPromise, type WaitForFinalityOptions, };
 type TransactionCommon = {
     /**
      * Transaction structure used to describe a state transition on the Mina blockchain.
@@ -49,6 +49,12 @@ declare namespace Transaction {
      * ```
      */
     function fromJSON(json: Types.Json.ZkappCommand | string): Transaction<false, false>;
+    /**
+     * Computes the hash of a transaction represented as a JSON object or JSON string.
+     * This hash serves as a unique identifier for the transaction and is essential for tracking
+     * and verifying transactions on the Mina blockchain.
+     */
+    function hash(json: Types.Json.ZkappCommand | string): Promise<string>;
 }
 /**
  * Defines the structure and operations associated with a transaction.
@@ -86,7 +92,7 @@ type Transaction<Proven extends boolean, Signed extends boolean> = TransactionCo
      */
     setFee(newFee: UInt64): TransactionPromise<Proven, false>;
     /**
-     * setFeePerAccountUpdate behaves identically to {@link Transaction.setFee} but the fee is given per estimated cost of snarking the transition as given by {@link getTotalTimeRequired}. This is useful because it should reflect what snark workers would charge in times of network contention.
+     * setFeePerAccountUpdate behaves identically to {@link Transaction.setFee} but the fee is given per estimated cost of snarking the transition as given by {@link getSegmentsAndEvents}. This is useful because it should reflect what snark workers would charge in times of network contention.
      */
     setFeePerAccountUpdate(newFeePerAccountUpdate: number): TransactionPromise<Proven, false>;
 } & (Proven extends false ? {
@@ -239,6 +245,96 @@ type IncludedTransaction = Pick<PendingTransaction, 'transaction' | 'toJSON' | '
      * ```
      */
     status: 'included';
+    /**
+     * The block height at which this transaction was included.
+     * May be undefined if not tracked (e.g., when using LocalBlockchain without block height simulation).
+     */
+    inclusionBlockHeight?: number;
+    /**
+     * Fetches the current depth (confirmation count) of this transaction.
+     * Depth represents the number of blocks built on top of the block containing this transaction.
+     *
+     * @param options - Optional configuration for the depth query
+     * @param options.blockLength - Number of blocks to search (default: 20)
+     * @param options.finalityThreshold - Blocks required for finality (default: 15, which provides 99.9% confidence)
+     * @returns TransactionDepthInfo with depth, block heights, and finality status
+     * @throws Error if the transaction cannot be found in recent blocks or a network error occurs
+     *
+     * @example
+     * ```ts
+     * const included = await pendingTransaction.wait();
+     * const depthInfo = await included.getDepth();
+     * console.log(`Depth: ${depthInfo.depth}, Finalized: ${depthInfo.isFinalized}`);
+     * ```
+     *
+     * @see https://docs.minaprotocol.com/mina-protocol/lifecycle-of-a-payment
+     */
+    getDepth(options?: DepthOptions): Promise<TransactionDepthInfo>;
+    /**
+     * Safe variant of {@link IncludedTransaction.getDepth} that returns null instead of throwing.
+     *
+     * @param options - Optional configuration for the depth query
+     * @returns TransactionDepthInfo if found, null otherwise
+     *
+     * @example
+     * ```ts
+     * const depthInfo = await included.safeGetDepth();
+     * if (depthInfo?.isFinalized) {
+     *   console.log('Transaction has reached finality!');
+     * }
+     * ```
+     */
+    safeGetDepth(options?: DepthOptions): Promise<TransactionDepthInfo | null>;
+    /**
+     * Polls the network until the transaction reaches the specified finality threshold.
+     * Returns the final {@link TransactionDepthInfo} once finality is reached.
+     *
+     * Use the `onProgress` callback to receive updates on each poll — useful for
+     * updating UIs with confirmation progress.
+     *
+     * @param options - Configuration for the finality wait
+     * @param options.finalityThreshold - Blocks required for finality (default: 15)
+     * @param options.interval - Polling interval in ms (default: 60000)
+     * @param options.maxAttempts - Max polling attempts before giving up (default: 30)
+     * @param options.onProgress - Callback invoked on each poll with the current depth info
+     * @returns TransactionDepthInfo once finality is reached
+     * @throws Error if max attempts exceeded or transaction not found
+     *
+     * @example
+     * ```ts
+     * // Simple usage — fire and forget
+     * included.waitForFinality().then(info => {
+     *   console.log(`Finalized at depth: ${info.depth}`);
+     * });
+     *
+     * // With progress callback for UI updates
+     * included.waitForFinality({
+     *   finalityThreshold: 10,
+     *   onProgress: (info) => {
+     *     console.log(`${info.depth}/${info.finalityThreshold} confirmations`);
+     *   },
+     * });
+     * ```
+     *
+     * @see https://docs.minaprotocol.com/mina-protocol/lifecycle-of-a-payment
+     */
+    waitForFinality(options?: WaitForFinalityOptions): Promise<TransactionDepthInfo>;
+};
+/**
+ * Options for {@link IncludedTransaction.waitForFinality}.
+ */
+type WaitForFinalityOptions = {
+    /**
+     * Number of blocks required for finality (default: 15).
+     * @see https://docs.minaprotocol.com/mina-protocol/lifecycle-of-a-payment
+     */
+    finalityThreshold?: number;
+    /** Polling interval in milliseconds (default: 60000) */
+    interval?: number;
+    /** Maximum number of polling attempts before throwing (default: 30) */
+    maxAttempts?: number;
+    /** Callback invoked on each poll with the current depth info */
+    onProgress?: (info: TransactionDepthInfo) => void;
 };
 /**
  * Represents a transaction that has been rejected and not included in a blockchain block.
@@ -328,4 +424,4 @@ declare function sendTransaction(txn: Transaction<boolean, boolean>): Promise<Pe
  */
 declare function getAccount(publicKey: PublicKey, tokenId?: Field): Account;
 declare function createRejectedTransaction({ transaction, data, toJSON, toPretty, hash }: Omit<PendingTransaction, 'wait' | 'safeWait'>, errors: string[]): RejectedTransaction;
-declare function createIncludedTransaction({ transaction, data, toJSON, toPretty, hash, }: Omit<PendingTransaction, 'wait' | 'safeWait'>): IncludedTransaction;
+declare function createIncludedTransaction({ transaction, data, toJSON, toPretty, hash }: Omit<PendingTransaction, 'wait' | 'safeWait'>, inclusionBlockHeight?: number): IncludedTransaction;

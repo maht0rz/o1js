@@ -1,9 +1,9 @@
-import type { WasmFpGate, WasmFpPolyComm, WasmFqGate, WasmFqPolyComm, WasmGPallas, WasmGVesta } from '../../compiled/node_bindings/plonk_wasm.cjs';
-import { OrInfinity, Gate, PolyComm, Wire } from './kimchi-types.js';
-import type * as wasmNamespace from '../../compiled/node_bindings/plonk_wasm.cjs';
 import { MlArray } from '../../../lib/ml/base.js';
+import type * as wasmNamespace from '../../compiled/node_bindings/kimchi_wasm.cjs';
+import type { WasmFpGate, WasmFpPolyComm, WasmFqGate, WasmFqPolyComm, WasmGPallas, WasmGVesta } from '../../compiled/node_bindings/kimchi_wasm.cjs';
 import { WasmAffine, affineFromRust, fieldsFromRustFlat, fieldsToRustFlat } from './conversion-base.js';
-export { ConversionCore, ConversionCores, conversionCore, freeOnFinalize, wrap, unwrap, mapFromUintArray, mapToUint32Array, };
+import { Gate, OrInfinity, PolyComm, Wire } from './kimchi-types.js';
+export { ConversionCore, ConversionCores, conversionCore, freeOnFinalize, intoRaw, mapFromUintArray, mapToUint32Array, unwrap, wrap, };
 type wasm = typeof wasmNamespace;
 type WasmPolyComm = WasmFpPolyComm | WasmFqPolyComm;
 type WasmClasses = {
@@ -19,8 +19,8 @@ declare function conversionCore(wasm: wasm): {
         wireToRust([, row, col]: Wire): wasmNamespace.Wire;
         vectorToRust: typeof fieldsToRustFlat;
         vectorFromRust: typeof fieldsFromRustFlat;
-        gateToRust(gate: Gate): WasmFpGate | WasmFqGate;
-        gateFromRust(wasmGate: WasmFpGate | WasmFqGate): never;
+        gateToRust(gate: Gate): wasmNamespace.WasmFpGate | wasmNamespace.WasmFqGate;
+        gateFromRust(wasmGate: wasmNamespace.WasmFpGate | wasmNamespace.WasmFqGate): never;
         pointToRust(point: OrInfinity): WasmAffine;
         pointFromRust: typeof affineFromRust;
         pointsToRust([, ...points]: MlArray<OrInfinity>): Uint32Array;
@@ -34,8 +34,8 @@ declare function conversionCore(wasm: wasm): {
         wireToRust([, row, col]: Wire): wasmNamespace.Wire;
         vectorToRust: typeof fieldsToRustFlat;
         vectorFromRust: typeof fieldsFromRustFlat;
-        gateToRust(gate: Gate): WasmFpGate | WasmFqGate;
-        gateFromRust(wasmGate: WasmFpGate | WasmFqGate): never;
+        gateToRust(gate: Gate): wasmNamespace.WasmFpGate | wasmNamespace.WasmFqGate;
+        gateFromRust(wasmGate: wasmNamespace.WasmFpGate | wasmNamespace.WasmFqGate): never;
         pointToRust(point: OrInfinity): WasmAffine;
         pointFromRust: typeof affineFromRust;
         pointsToRust([, ...points]: MlArray<OrInfinity>): Uint32Array;
@@ -52,7 +52,7 @@ declare function conversionCorePerField(wasm: wasm, { CommitmentCurve, makeAffin
     wireToRust([, row, col]: Wire): wasmNamespace.Wire;
     vectorToRust: typeof fieldsToRustFlat;
     vectorFromRust: typeof fieldsFromRustFlat;
-    gateToRust(gate: Gate): WasmFpGate | WasmFqGate;
+    gateToRust(gate: Gate): wasmNamespace.WasmFpGate | wasmNamespace.WasmFqGate;
     gateFromRust(wasmGate: WasmFpGate | WasmFqGate): never;
     pointToRust(point: OrInfinity): WasmAffine;
     pointFromRust: typeof affineFromRust;
@@ -66,9 +66,12 @@ declare function conversionCorePerField(wasm: wasm, { CommitmentCurve, makeAffin
 type Freeable = {
     free(): void;
 };
-type Constructor<T> = new (...args: any[]) => T;
-declare function wrap<T>(ptr: number, Class: Constructor<T>): T;
+type Constructor<T extends object> = {
+    prototype: T;
+};
+declare function wrap<T extends object>(ptr: number, Class: Constructor<T>): T;
 declare function unwrap<T extends {}>(obj: T): number;
+declare function intoRaw<T extends {}>(obj: T): number;
 declare function freeOnFinalize<T extends Freeable>(instance: T): T;
 declare function mapFromUintArray<T>(array: Uint32Array | Uint8Array, map: (i: number) => T): T[];
 declare function mapToUint32Array<T>(array: T[], map: (t: T) => number): Uint32Array;
