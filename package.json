@@ -51,6 +51,7 @@
     "build:dev": "./scripts/build/ts/build-dev.sh",
     "build": "./scripts/build/ts/build-node.sh",
     "build:web": "./scripts/build/ts/build-web.sh",
+    "build:web:release-rebundle": "node scripts/build/rebundle-web-release.mjs",
     "build:examples": "./scripts/build/ts/build-examples.sh",
     "build:bindings-node": "./src/bindings/scripts/build-o1js-node.sh",
     "build:bindings-all": "./src/bindings/scripts/update-o1js-bindings.sh",

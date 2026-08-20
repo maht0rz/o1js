@@ -1,0 +1,11 @@
+import { MlOption } from '../../../lib/ml/base.js';
+import type { Field, PointEvaluations, ProofEvaluations } from './kimchi-types.js';
+export { fieldToRust_, proofEvaluationsToRust, proofEvaluationsFromRust, pointEvalsOptionToRust, pointEvalsOptionFromRust, createMapPointEvals, mapPointEvalsOption, mapProofEvaluations, };
+declare const fieldToRust_: (x: Field) => Uint8Array;
+declare const proofEvaluationsToRust: (evals: ProofEvaluations<Field>) => ProofEvaluations<Uint8Array>;
+declare const proofEvaluationsFromRust: (evals: ProofEvaluations<Uint8Array>) => ProofEvaluations<Field>;
+declare const pointEvalsOptionToRust: (evals: MlOption<PointEvaluations<Field>>) => MlOption<PointEvaluations<Uint8Array>>;
+declare const pointEvalsOptionFromRust: (evals: MlOption<PointEvaluations<Uint8Array>>) => MlOption<PointEvaluations<Field>>;
+declare function createMapPointEvals<Field1, Field2>(map: (x: Field1) => Field2): (evals: PointEvaluations<Field1>) => PointEvaluations<Field2>;
+declare function mapPointEvalsOption<Field1, Field2>(map: (x: Field1) => Field2): (evals: MlOption<PointEvaluations<Field1>>) => MlOption<PointEvaluations<Field2>>;
+declare function mapProofEvaluations<Field1, Field2>(map: (x: Field1) => Field2): (evals: ProofEvaluations<Field1>) => ProofEvaluations<Field2>;

@@ -1,0 +1,44 @@
+import type { Wasm, RustConversion } from '../bindings.js';
+import { type WasmFpSrs, type WasmFqSrs } from '../../compiled/node_bindings/kimchi_wasm.cjs';
+import { PolyComm } from './kimchi-types.js';
+import { MlArray } from '../../../lib/ml/base.js';
+export { srs };
+type WasmSrs = WasmFpSrs | WasmFqSrs;
+declare function srs(wasm: Wasm, conversion: RustConversion<'wasm'>): {
+    fp: {
+        /**
+         * returns existing stored SRS or falls back to creating a new one
+         */
+        create(size: number): WasmSrs;
+        /**
+         * returns ith Lagrange basis commitment for a given domain size
+         */
+        lagrangeCommitment(srs: WasmSrs, domainSize: number, i: number): PolyComm;
+        /**
+         * Returns the Lagrange basis commitments for the whole domain
+         */
+        lagrangeCommitmentsWholeDomain(srs: WasmSrs, domainSize: number): MlArray<PolyComm>;
+        /**
+         * adds Lagrange basis for a given domain size
+         */
+        addLagrangeBasis(srs: WasmSrs, logSize: number): void;
+    };
+    fq: {
+        /**
+         * returns existing stored SRS or falls back to creating a new one
+         */
+        create(size: number): WasmSrs;
+        /**
+         * returns ith Lagrange basis commitment for a given domain size
+         */
+        lagrangeCommitment(srs: WasmSrs, domainSize: number, i: number): PolyComm;
+        /**
+         * Returns the Lagrange basis commitments for the whole domain
+         */
+        lagrangeCommitmentsWholeDomain(srs: WasmSrs, domainSize: number): MlArray<PolyComm>;
+        /**
+         * adds Lagrange basis for a given domain size
+         */
+        addLagrangeBasis(srs: WasmSrs, logSize: number): void;
+    };
+};
