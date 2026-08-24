@@ -102,14 +102,12 @@ declare class ForeignField {
     static from(x: bigint | number | string): CanonicalForeignField;
     static from(x: ForeignField | bigint | number | string): ForeignField;
     /**
-     * @internal
      * Checks whether this field element is a constant.
      *
      * See {@link FieldVar} to understand constants vs variables.
      */
     isConstant(): boolean;
     /**
-     * @internal
      * Convert this field element to a constant.
      *
      * See {@link FieldVar} to understand constants vs variables.

@@ -96,7 +96,6 @@ declare class ForeignCurve {
      */
     get modulus(): bigint;
     /**
-     * @internal
      * Checks whether this curve point is constant.
      *
      * See {@link FieldVar} to understand constants vs variables.

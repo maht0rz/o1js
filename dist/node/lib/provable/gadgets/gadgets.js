@@ -679,7 +679,6 @@ const Gadgets = {
             return ForeignField.sum(xs, signs, f);
         },
         /**
-         * @internal
          *
          * Foreign field multiplication: `x * y mod f`
          *
@@ -717,7 +716,6 @@ const Gadgets = {
             return ForeignField.mul(x, y, f);
         },
         /**
-         * @internal
          *
          * Foreign field inverse: `x^(-1) mod f`
          *
@@ -729,7 +727,6 @@ const Gadgets = {
             return ForeignField.inv(x, f);
         },
         /**
-         * @internal
          *
          * Foreign field division: `x * y^(-1) mod f`
          *
@@ -743,7 +740,6 @@ const Gadgets = {
             return ForeignField.div(x, y, f);
         },
         /**
-         * @internal
          *
          * Optimized multiplication of sums in a foreign field, for example: `(x - y)*z = a + b + c mod f`
          *
@@ -782,7 +778,6 @@ const Gadgets = {
             return ForeignField.assertMul(x, y, z, f, message);
         },
         /**
-         * @internal
          *
          * Lazy sum of {@link Field3} elements, which can be used as input to {@link Gadgets.ForeignField.assertMul}.
          */
@@ -790,7 +785,6 @@ const Gadgets = {
             return ForeignField.Sum(x);
         },
         /**
-         * @internal
          *
          * Prove that each of the given {@link Field3} elements is "almost" reduced modulo f,
          * i.e., satisfies the assumptions required by {@link Gadgets.ForeignField.mul} and other gadgets:

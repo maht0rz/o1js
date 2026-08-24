@@ -30,7 +30,6 @@ class Scalar {
         return new Scalar(lowBit, high254);
     }
     /**
-     * @internal
      * Provable method to convert a {@link ShiftedScalar} to a {@link Scalar}.
      */
     static fromShiftedScalar(s) {
@@ -54,7 +53,6 @@ class Scalar {
         return isConstant(lowBit, high254);
     }
     /**
-     * @internal
      * Convert this {@link Scalar} into a constant if it isn't already.
      *
      * If the scalar is a variable, this only works inside `asProver` or `witness` blocks.

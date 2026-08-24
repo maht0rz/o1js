@@ -113,7 +113,6 @@ class ForeignField {
         return new this.Canonical(x);
     }
     /**
-     * @internal
      * Checks whether this field element is a constant.
      *
      * See {@link FieldVar} to understand constants vs variables.
@@ -122,7 +121,6 @@ class ForeignField {
         return Field3.isConstant(this.value);
     }
     /**
-     * @internal
      * Convert this field element to a constant.
      *
      * See {@link FieldVar} to understand constants vs variables.

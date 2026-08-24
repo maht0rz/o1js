@@ -165,7 +165,6 @@ class ForeignCurve {
         return this.Constructor.Bigint.modulus;
     }
     /**
-     * @internal
      * Checks whether this curve point is constant.
      *
      * See {@link FieldVar} to understand constants vs variables.

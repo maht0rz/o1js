@@ -1,5 +1,5 @@
-import { PrivateKey, TokenId } from 'o1js';
-import { createActionsList, fetchAccount, fetchActions, fetchEvents, setArchiveDefaultHeaders, setArchiveGraphqlEndpoint, setGraphqlEndpoint, setMinaDefaultHeaders, } from './fetch.js';
+import { PrivateKey, TokenId, Types } from 'o1js';
+import { createActionsList, fetchAccount, fetchActions, fetchEvents, parseFetchedAccount, setArchiveDefaultHeaders, setArchiveGraphqlEndpoint, setGraphqlEndpoint, setMinaDefaultHeaders, } from './fetch.js';
 import { mockFetchActionsResponse as fetchResponseWithTxInfo } from './fixtures/fetch-actions-response-with-transaction-info.js';
 import { mockFetchActionsResponse as fetchResponseNoTxInfo } from './fixtures/fetch-actions-response-without-transaction-info.js';
 import { test, describe, beforeEach, afterEach } from 'node:test';
@@ -105,6 +105,55 @@ actual = removeJsonQuotes(input);
 expect(actual).toEqual(expected);
 console.log('regex tests complete 🎉');
 describe('Fetch', () => {
+    test('preserves permissions from fetched accounts', () => {
+        const txnVersion = '17';
+        const permissions = {
+            editState: 'Proof',
+            access: 'None',
+            send: 'Signature',
+            receive: 'Either',
+            setDelegate: 'Impossible',
+            setPermissions: 'Proof',
+            setVerificationKey: {
+                auth: 'Signature',
+                txnVersion,
+            },
+            setZkappUri: 'None',
+            editActionState: 'Either',
+            setTokenSymbol: 'Impossible',
+            incrementNonce: 'Signature',
+            setVotingFor: 'Proof',
+            setTiming: 'None',
+        };
+        const fetchedAccountResponse = {
+            account: {
+                publicKey: PrivateKey.random().toPublicKey().toBase58(),
+                token: TokenId.toBase58(TokenId.default),
+                nonce: '0',
+                balance: { total: '1' },
+                tokenSymbol: null,
+                receiptChainHash: null,
+                timing: {
+                    initialMinimumBalance: null,
+                    cliffTime: null,
+                    cliffAmount: null,
+                    vestingPeriod: null,
+                    vestingIncrement: null,
+                },
+                permissions,
+                delegateAccount: null,
+                votingFor: null,
+                zkappState: null,
+                verificationKey: null,
+                actionState: null,
+                provedState: null,
+                zkappUri: null,
+            },
+        };
+        const account = parseFetchedAccount(fetchedAccountResponse.account);
+        expect(account.permissions.setVerificationKey.txnVersion.toString()).toEqual(txnVersion);
+        expect(Types.Account.toJSON(account).permissions).toEqual(permissions);
+    });
     describe('#createActionsList with default params', () => {
         const defaultPublicKey = PrivateKey.random().toPublicKey().toBase58();
         const defaultActionStates = {

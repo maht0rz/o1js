@@ -121,7 +121,6 @@ declare function split(x: bigint): bigint3;
  */
 declare function assertMul(x: Field3 | Sum, y: Field3 | Sum, xy: Field3 | Sum, f: bigint, message?: string): void;
 /**
- * @internal
  *
  * Lazy sum of {@link Field3} elements, which can be used as input to `Gadgets.ForeignField.assertMul()`.
  */

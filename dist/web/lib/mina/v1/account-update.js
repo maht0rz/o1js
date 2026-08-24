@@ -277,10 +277,15 @@ let Permissions = {
         }
     },
     fromJSON: (permissions) => {
-        return Object.fromEntries(Object.entries(permissions).map(([k, v]) => [
-            k,
-            Permissions.fromString(typeof v === 'string' ? v : v.auth),
-        ]));
+        return Object.fromEntries(Object.entries(permissions).map(([key, value]) => {
+            if (key === 'setVerificationKey' && typeof value !== 'string') {
+                return [
+                    key,
+                    new VerificationKeyPermission(Permissions.fromString(value.auth), UInt32.from(value.txnVersion)),
+                ];
+            }
+            return [key, Permissions.fromString(value)];
+        }));
     },
 };
 const Body = {

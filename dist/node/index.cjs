@@ -7500,7 +7500,6 @@ var init_provable = __esm({
        */
       Array: provableArray,
       /**
-       * @internal
        * Check whether a value is constant.
        * See {@link FieldVar} for more information about constants and variables.
        *
@@ -10706,7 +10705,6 @@ var init_scalar = __esm({
         return new _Scalar(lowBit, high254);
       }
       /**
-       * @internal
        * Provable method to convert a {@link ShiftedScalar} to a {@link Scalar}.
        */
       static fromShiftedScalar(s) {
@@ -10730,7 +10728,6 @@ var init_scalar = __esm({
         return isConstant(lowBit, high254);
       }
       /**
-       * @internal
        * Convert this {@link Scalar} into a constant if it isn't already.
        *
        * If the scalar is a variable, this only works inside `asProver` or `witness` blocks.
@@ -16804,7 +16801,6 @@ var Gadgets = {
       return ForeignField.sum(xs, signs, f);
     },
     /**
-     * @internal
      *
      * Foreign field multiplication: `x * y mod f`
      *
@@ -16842,7 +16838,6 @@ var Gadgets = {
       return ForeignField.mul(x, y, f);
     },
     /**
-     * @internal
      *
      * Foreign field inverse: `x^(-1) mod f`
      *
@@ -16854,7 +16849,6 @@ var Gadgets = {
       return ForeignField.inv(x, f);
     },
     /**
-     * @internal
      *
      * Foreign field division: `x * y^(-1) mod f`
      *
@@ -16868,7 +16862,6 @@ var Gadgets = {
       return ForeignField.div(x, y, f);
     },
     /**
-     * @internal
      *
      * Optimized multiplication of sums in a foreign field, for example: `(x - y)*z = a + b + c mod f`
      *
@@ -16907,7 +16900,6 @@ var Gadgets = {
       return ForeignField.assertMul(x, y, z, f, message);
     },
     /**
-     * @internal
      *
      * Lazy sum of {@link Field3} elements, which can be used as input to {@link Gadgets.ForeignField.assertMul}.
      */
@@ -16915,7 +16907,6 @@ var Gadgets = {
       return ForeignField.Sum(x);
     },
     /**
-     * @internal
      *
      * Prove that each of the given {@link Field3} elements is "almost" reduced modulo f,
      * i.e., satisfies the assumptions required by {@link Gadgets.ForeignField.mul} and other gadgets:
@@ -17256,7 +17247,6 @@ var ForeignField2 = class _ForeignField {
     return new this.Canonical(x);
   }
   /**
-   * @internal
    * Checks whether this field element is a constant.
    *
    * See {@link FieldVar} to understand constants vs variables.
@@ -17265,7 +17255,6 @@ var ForeignField2 = class _ForeignField {
     return Field32.isConstant(this.value);
   }
   /**
-   * @internal
    * Convert this field element to a constant.
    *
    * See {@link FieldVar} to understand constants vs variables.
@@ -18288,7 +18277,6 @@ var ForeignCurve = class {
     return this.Constructor.Bigint.modulus;
   }
   /**
-   * @internal
    * Checks whether this curve point is constant.
    *
    * See {@link FieldVar} to understand constants vs variables.
@@ -28119,10 +28107,15 @@ var Permissions = {
     }
   },
   fromJSON: (permissions) => {
-    return Object.fromEntries(Object.entries(permissions).map(([k, v]) => [
-      k,
-      Permissions.fromString(typeof v === "string" ? v : v.auth)
-    ]));
+    return Object.fromEntries(Object.entries(permissions).map(([key, value]) => {
+      if (key === "setVerificationKey" && typeof value !== "string") {
+        return [
+          key,
+          new VerificationKeyPermission(Permissions.fromString(value.auth), UInt322.from(value.txnVersion))
+        ];
+      }
+      return [key, Permissions.fromString(value)];
+    }));
   }
 };
 var Body = {

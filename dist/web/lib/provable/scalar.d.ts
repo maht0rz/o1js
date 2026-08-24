@@ -24,7 +24,6 @@ declare class Scalar implements ShiftedScalar {
      */
     static from(s: Scalar | bigint | number | string): Scalar;
     /**
-     * @internal
      * Provable method to convert a {@link ShiftedScalar} to a {@link Scalar}.
      */
     static fromShiftedScalar(s: ShiftedScalar): Scalar;
@@ -40,7 +39,6 @@ declare class Scalar implements ShiftedScalar {
      */
     isConstant(): boolean;
     /**
-     * @internal
      * Convert this {@link Scalar} into a constant if it isn't already.
      *
      * If the scalar is a variable, this only works inside `asProver` or `witness` blocks.

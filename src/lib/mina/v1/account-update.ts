@@ -470,10 +470,18 @@ let Permissions = {
     permissions: NonNullable<Types.Json.AccountUpdate['body']['update']['permissions']>
   ): Permissions => {
     return Object.fromEntries(
-      Object.entries(permissions).map(([k, v]) => [
-        k,
-        Permissions.fromString(typeof v === 'string' ? v : v.auth),
-      ])
+      Object.entries(permissions).map(([key, value]) => {
+        if (key === 'setVerificationKey' && typeof value !== 'string') {
+          return [
+            key,
+            new VerificationKeyPermission(
+              Permissions.fromString(value.auth),
+              UInt32.from(value.txnVersion)
+            ),
+          ];
+        }
+        return [key, Permissions.fromString(value as AuthRequired)];
+      })
     ) as unknown as Permissions;
   },
 };
@@ -490,7 +498,6 @@ interface Body extends AccountUpdateBody {
   publicKey: PublicKey;
 
   /**
-   * @internal
    *
    * Specify {@link Update}s to tweakable pieces of the account record backing
    * this address in the ledger.
@@ -517,7 +524,6 @@ interface Body extends AccountUpdateBody {
    */
   events: Events;
   /**
-   * @internal
    *
    * Recent {@link Action}s emitted from this account.
    * Actions can be collected by archive nodes and used in combination with
