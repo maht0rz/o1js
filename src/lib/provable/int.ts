@@ -6,7 +6,7 @@ import { HashInput } from './crypto/poseidon.js';
 import { Provable } from './provable.js';
 import * as RangeCheck from './gadgets/range-check.js';
 import * as Bitwise from './gadgets/bitwise.js';
-import { addMod32, addMod64 } from './gadgets/arithmetic.js';
+import { addMod32, addMod64, divMod64 } from './gadgets/arithmetic.js';
 import { checkBitLength, withMessage } from './field.js';
 import { FieldVar } from './core/fieldvar.js';
 import { CircuitValue, prop } from './types/circuit-value.js';
@@ -178,13 +178,13 @@ class UInt128 extends CircuitValue {
 
     RangeCheck.rangeCheckN(UInt128.NUM_BITS, q);
 
-    // TODO: Could be a bit more efficient
-    let r = x.sub(q.mul(y_)).seal();
+    // The integer product must fit in 128 bits; a field product could wrap.
+    let q_ = new UInt128(q.value);
+    let product = q_.mul(new UInt128(y_.value));
+    let r = x.sub(product.value).seal();
     RangeCheck.rangeCheckN(UInt128.NUM_BITS, r);
 
     let r_ = new UInt128(r.value);
-    let q_ = new UInt128(q.value);
-
     r_.assertLessThan(new UInt128(y_.value));
 
     return { quotient: q_, rest: r_ };
@@ -214,9 +214,15 @@ class UInt128 extends CircuitValue {
    * Multiplication with overflow checking.
    */
   mul(y: UInt128 | number) {
-    let z = this.value.mul(UInt128.from(y).value);
-    RangeCheck.rangeCheckN(UInt128.NUM_BITS, z);
-    return new UInt128(z.value);
+    let { quotient: x1, remainder: x0 } = divMod64(this.value);
+    let { quotient: y1, remainder: y0 } = divMod64(UInt128.from(y).value);
+    // Each limb is 64 bits, so these products and sums cannot wrap the field.
+    // x*y = low + 2^64*high + 2^128*x1*y1 must fit in 128 bits.
+    x1.mul(y1).assertEquals(0);
+    let { quotient: carry, remainder: low } = divMod64(x0.mul(y0));
+    let high = x1.mul(y0).add(x0.mul(y1)).add(carry).seal();
+    RangeCheck.rangeCheckN(64, high);
+    return new UInt128(low.add(high.mul(1n << 64n)).value);
   }
 
   /**

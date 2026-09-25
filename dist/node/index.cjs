@@ -12992,10 +12992,11 @@ var UInt128 = class _UInt128 extends CircuitValue {
     y_ = y_.seal();
     let q3 = Provable.witness(Field4, () => new Field4(x.toBigInt() / y_.toBigInt()));
     rangeCheckN(_UInt128.NUM_BITS, q3);
-    let r = x.sub(q3.mul(y_)).seal();
+    let q_ = new _UInt128(q3.value);
+    let product = q_.mul(new _UInt128(y_.value));
+    let r = x.sub(product.value).seal();
     rangeCheckN(_UInt128.NUM_BITS, r);
     let r_ = new _UInt128(r.value);
-    let q_ = new _UInt128(q3.value);
     r_.assertLessThan(new _UInt128(y_.value));
     return { quotient: q_, rest: r_ };
   }
@@ -13021,9 +13022,13 @@ var UInt128 = class _UInt128 extends CircuitValue {
    * Multiplication with overflow checking.
    */
   mul(y) {
-    let z = this.value.mul(_UInt128.from(y).value);
-    rangeCheckN(_UInt128.NUM_BITS, z);
-    return new _UInt128(z.value);
+    let { quotient: x1, remainder: x0 } = divMod64(this.value);
+    let { quotient: y1, remainder: y0 } = divMod64(_UInt128.from(y).value);
+    x1.mul(y1).assertEquals(0);
+    let { quotient: carry, remainder: low } = divMod64(x0.mul(y0));
+    let high = x1.mul(y0).add(x0.mul(y1)).add(carry).seal();
+    rangeCheckN(64, high);
+    return new _UInt128(low.add(high.mul(1n << 64n)).value);
   }
   /**
    * Addition with overflow checking.

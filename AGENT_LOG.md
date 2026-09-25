@@ -67,6 +67,27 @@ tags: [account-update, nested-call, security, packaged-output]
 
 **Relevant files:** `src/lib/mina/v1/account-update.ts`, `src/lib/mina/v1/zkapp.ts`, `tests/o1js-security-regression.test.mjs`, `tests/o1js-security-proof.test.mjs`
 
+---
+
+date: 2026-09-25
+agent: Codex
+session: treasury-uint128-audit-09
+category: circuit-model
+severity: critical
+tags: [uint128, integer-arithmetic, range-check, real-proofs]
+
+### Use bounded limbs for UInt128 multiplication and reuse it in division
+
+**Context:** Audit #09 shows that a 128-by-128-bit field product can wrap modulo the Pasta field.
+
+**Resolution:** Split inputs with the existing divMod64 gadget. Require a zero high-by-high product and a 64-bit cross-product-plus-carry. Division now computes q*y through this checked multiplication. All intermediate products stay below 2^128 and cross sums below 2^129 + 2^64, so the field cannot wrap. The API and full input range remain unchanged.
+
+**Testing lesson:** Provable.runAndCheck does not validate custom range-check gates. An initial rangeCheck64 high-limb check therefore did not reject an oversized witness in the fast checker, although real proofs enforced it. The final implementation uses rangeCheckN(64) there. The existing divMod64 limb constraints still need real-proof tests; a malicious oversized limb with a correct reconstruction is rejected in both WASM and native proof tests.
+
+**Build lesson:** tsc can regenerate unrelated binding declarations from the available local backend types. Restore those unchanged files before committing the arithmetic patch. Do not reorder all integer-module imports merely to satisfy the formatter's organize-imports plugin.
+
+**Relevant files:** src/lib/provable/int.ts, tests/uint128-security.test.mjs, tests/uint128-security-proof.test.mjs, UINT128-SECURITY.md
+
 <!-- END LOG -->`
    marker)
 2. Use the exact template below
@@ -232,5 +253,26 @@ tags: [account-update, nested-call, security, packaged-output]
 **Key takeaway:** Dependency installation does not update deployed verification keys. Recompile affected contracts and use a valid deployment or migration path.
 
 **Relevant files:** `src/lib/mina/v1/account-update.ts`, `src/lib/mina/v1/zkapp.ts`, `tests/o1js-security-regression.test.mjs`, `tests/o1js-security-proof.test.mjs`
+
+---
+
+date: 2026-09-25
+agent: Codex
+session: treasury-uint128-audit-09
+category: circuit-model
+severity: critical
+tags: [uint128, integer-arithmetic, range-check, real-proofs]
+
+### Use bounded limbs for UInt128 multiplication and reuse it in division
+
+**Context:** Audit #09 shows that a 128-by-128-bit field product can wrap modulo the Pasta field.
+
+**Resolution:** Split inputs with the existing divMod64 gadget. Require a zero high-by-high product and a 64-bit cross-product-plus-carry. Division now computes q*y through this checked multiplication. All intermediate products stay below 2^128 and cross sums below 2^129 + 2^64, so the field cannot wrap. The API and full input range remain unchanged.
+
+**Testing lesson:** Provable.runAndCheck does not validate custom range-check gates. An initial rangeCheck64 high-limb check therefore did not reject an oversized witness in the fast checker, although real proofs enforced it. The final implementation uses rangeCheckN(64) there. The existing divMod64 limb constraints still need real-proof tests; a malicious oversized limb with a correct reconstruction is rejected in both WASM and native proof tests.
+
+**Build lesson:** tsc can regenerate unrelated binding declarations from the available local backend types. Restore those unchanged files before committing the arithmetic patch. Do not reorder all integer-module imports merely to satisfy the formatter's organize-imports plugin.
+
+**Relevant files:** src/lib/provable/int.ts, tests/uint128-security.test.mjs, tests/uint128-security-proof.test.mjs, UINT128-SECURITY.md
 
 <!-- END LOG -->
