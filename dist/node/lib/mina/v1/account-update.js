@@ -1,35 +1,36 @@
 var _a, _b;
-import { cloneCircuitValue, StructNoJson } from '../../provable/types/struct.js';
-import { provable, provableExtends, provablePure } from '../../provable/types/provable-derivers.js';
-import { memoizationContext, memoizeWitness, Provable } from '../../provable/provable.js';
-import { Field, Bool } from '../../provable/wrapped.js';
 import { Pickles } from '../../../bindings.js';
-import { jsLayout } from '../../../bindings/mina-transaction/gen/v1/js-layout.js';
-import { Types, toJSONEssential } from '../../../bindings/mina-transaction/v1/types.js';
-import { PublicKey } from '../../provable/crypto/signature.js';
-import { UInt64, UInt32, Int64 } from '../../provable/int.js';
-import { Preconditions, preconditions, getAccountPreconditions, } from './precondition.js';
-import { dummyBase64Proof, Prover } from '../../proof-system/zkprogram.js';
-import { Memo } from '../../../mina-signer/src/memo.js';
-import { Events as BaseEvents, Actions as BaseActions, MayUseToken as BaseMayUseToken, } from '../../../bindings/mina-transaction/v1/transaction-leaves.js';
-import { TokenId as Base58TokenId } from './base58-encodings.js';
-import { hashWithPrefix, packToFields, Poseidon } from '../../provable/crypto/poseidon.js';
 import { mocks, prefixes, protocolVersions } from '../../../bindings/crypto/constants.js';
+import { jsLayout } from '../../../bindings/mina-transaction/gen/v1/js-layout.js';
+import { Actions as BaseActions, Events as BaseEvents, MayUseToken as BaseMayUseToken, } from '../../../bindings/mina-transaction/v1/transaction-leaves.js';
+import { toJSONEssential, Types } from '../../../bindings/mina-transaction/v1/types.js';
+import { Memo } from '../../../mina-signer/src/memo.js';
+import { accountUpdatesToCallForest, callForestHashGeneric, transactionCommitments, } from '../../../mina-signer/src/sign-zkapp-command.js';
 import { Signature, signFieldElement, zkAppBodyPrefix, } from '../../../mina-signer/src/signature.js';
 import { MlFieldConstArray } from '../../ml/fields.js';
-import { accountUpdatesToCallForest, callForestHashGeneric, transactionCommitments, } from '../../../mina-signer/src/sign-zkapp-command.js';
-import { currentTransaction } from './transaction-context.js';
-import { isSmartContract } from './smart-contract-base.js';
-import { activeInstance } from './mina-instance.js';
+import { dummyBase64Proof, Prover } from '../../proof-system/zkprogram.js';
+import { hashWithPrefix, packToFields, Poseidon } from '../../provable/crypto/poseidon.js';
+import { PublicKey } from '../../provable/crypto/signature.js';
+import { UInt32, UInt64 } from '../../provable/int.js';
 import { emptyHash, genericHash, MerkleList, MerkleListBase } from '../../provable/merkle-list.js';
+import { Option } from '../../provable/option.js';
 import { Hashed } from '../../provable/packed.js';
-import { accountUpdateLayout, smartContractContext } from './smart-contract-context.js';
-import { assert } from '../../util/assert.js';
+import { memoizationContext, memoizeWitness, Provable } from '../../provable/provable.js';
 import { RandomId } from '../../provable/types/auxiliary.js';
+import { provable, provableExtends, provablePure } from '../../provable/types/provable-derivers.js';
+import { cloneCircuitValue, StructNoJson } from '../../provable/types/struct.js';
+import { Bool, Field } from '../../provable/wrapped.js';
+import { assert } from '../../util/assert.js';
+import { TokenId as Base58TokenId } from './base58-encodings.js';
+import { activeInstance } from './mina-instance.js';
+import { getAccountPreconditions, Preconditions, preconditions, } from './precondition.js';
+import { isSmartContract } from './smart-contract-base.js';
+import { accountUpdateLayout, smartContractContext } from './smart-contract-context.js';
+import { currentTransaction } from './transaction-context.js';
 // external API
-export { AccountUpdate, Permissions, ZkappPublicInput, TransactionVersion, AccountUpdateForest, AccountUpdateTree, };
+export { AccountUpdate, AccountUpdateForest, AccountUpdateTree, OptionalAccountUpdate, Permissions, TransactionVersion, ZkappPublicInput, };
 // internal API
-export { Permission, Preconditions, Body, Authorization, ZkappCommand, addMissingSignatures, addMissingProofs, Events, Actions, TokenId, zkAppProver, dummySignature, AccountUpdateTreeBase, AccountUpdateLayout, hashAccountUpdate, HashedAccountUpdate, };
+export { AccountUpdateLayout, AccountUpdateTreeBase, Actions, addMissingProofs, addMissingSignatures, Authorization, Body, dummySignature, Events, hashAccountUpdate, HashedAccountUpdate, Permission, Preconditions, TokenId, ZkappCommand, zkAppProver, };
 const TransactionVersion = {
     current: () => UInt32.from(protocolVersions.txnVersion),
 };
@@ -403,6 +404,12 @@ class AccountUpdate {
             accountUpdateLayout()?.setChildren(this, child);
             return;
         }
+        if (isOptionalAccountUpdate(child)) {
+            child.value.body.callDepth = this.body.callDepth + 1;
+            accountUpdateLayout()?.disattach(child.value);
+            accountUpdateLayout()?.pushOptionalChild(this, child);
+            return;
+        }
         if (child instanceof AccountUpdate) {
             child.body.callDepth = this.body.callDepth + 1;
         }
@@ -616,9 +623,6 @@ class AccountUpdate {
         dummy.label = 'Dummy';
         return dummy;
     }
-    isDummy() {
-        return this.body.publicKey.isEmpty();
-    }
     static defaultFeePayer(address, nonce) {
         let body = FeePayerBody.keepAll(address, nonce);
         return {
@@ -640,16 +644,7 @@ class AccountUpdate {
      */
     static create(publicKey, tokenId) {
         let accountUpdate = AccountUpdate.default(publicKey, tokenId);
-        let insideContract = smartContractContext.get();
-        if (insideContract) {
-            let self = insideContract.this.self;
-            self.approve(accountUpdate);
-            accountUpdate.label = `${self.label || 'Unlabeled'} > AccountUpdate.create()`;
-        }
-        else {
-            currentTransaction()?.layout.pushTopLevel(accountUpdate);
-            accountUpdate.label = `Mina.transaction() > AccountUpdate.create()`;
-        }
+        attachToCurrentContext(accountUpdate, 'AccountUpdate.create()');
         return accountUpdate;
     }
     /**
@@ -659,10 +654,13 @@ class AccountUpdate {
      * a condition that determines whether the account update should be added to the transaction.
      */
     static createIf(condition, publicKey, tokenId) {
-        return AccountUpdate.create(
-        // if the condition is false, we use an empty public key, which causes the account update to be ignored
-        // as a dummy when building the transaction
-        Provable.if(condition, publicKey, PublicKey.empty()), tokenId);
+        let accountUpdate = AccountUpdate.default(publicKey, tokenId);
+        let optionalAccountUpdate = new OptionalAccountUpdate({
+            isSome: condition,
+            value: accountUpdate,
+        });
+        attachToCurrentContext(optionalAccountUpdate, 'AccountUpdate.createIf()');
+        return optionalAccountUpdate;
     }
     /**
      * Attach account update to the current transaction
@@ -751,29 +749,12 @@ class AccountUpdate {
         let accountUpdate = Types.AccountUpdate.fromValue(value);
         return new AccountUpdate(accountUpdate.body, accountUpdate.authorization);
     }
-    /**
-     * This function acts as the `check()` method on an `AccountUpdate` that is sent to the Mina node as part of a transaction.
-     *
-     * Background: the Mina node performs most necessary validity checks on account updates, both in- and outside of circuits.
-     * To save constraints, we don't repeat these checks in zkApps in places where we can be sure the checked account updates
-     * will be part of a transaction.
-     *
-     * However, there are a few checks skipped by the Mina node, that could cause vulnerabilities in zkApps if
-     * not checked in the zkApp proof itself. Adding these extra checks is the purpose of this function.
-     */
-    static clientSideOnlyChecks(au) {
-        // canonical int64 representation of the balance change
-        Int64.check(au.body.balanceChange);
-    }
-    static witness(resultType, compute, { skipCheck = false } = {}) {
+    static witness(resultType, compute) {
         // construct the circuit type for a accountUpdate + other result
-        let accountUpdate = skipCheck
-            ? {
-                ...provable(AccountUpdate),
-                check: AccountUpdate.clientSideOnlyChecks,
-            }
-            : AccountUpdate;
-        let combinedType = provable({ accountUpdate, result: resultType });
+        let combinedType = provable({
+            accountUpdate: AccountUpdate,
+            result: resultType,
+        });
         return Provable.witnessAsync(combinedType, compute);
     }
     /**
@@ -876,6 +857,27 @@ AccountUpdate.toInput = Types.AccountUpdate.toInput;
 AccountUpdate.check = Types.AccountUpdate.check;
 AccountUpdate.toValue = Types.AccountUpdate.toValue;
 AccountUpdate.MayUseToken = MayUseToken;
+const OptionalAccountUpdate = Option(AccountUpdate);
+function isOptionalAccountUpdate(update) {
+    return update instanceof OptionalAccountUpdate;
+}
+function attachToCurrentContext(update, source) {
+    let accountUpdate = isOptionalAccountUpdate(update) ? update.value : update;
+    let insideContract = smartContractContext.get();
+    if (insideContract) {
+        let self = insideContract.this.self;
+        self.approve(update);
+        accountUpdate.label = `${self.label || 'Unlabeled'} > ${source}`;
+    }
+    else {
+        let layout = currentTransaction()?.layout;
+        if (isOptionalAccountUpdate(update))
+            layout?.pushOptionalTopLevel(update);
+        else
+            layout?.pushTopLevel(update);
+        accountUpdate.label = `Mina.transaction() > ${source}`;
+    }
+}
 // call forest stuff
 function hashAccountUpdate(update) {
     return genericHash(AccountUpdate, zkAppBodyPrefix(activeInstance.getNetworkId()), update);
@@ -902,6 +904,9 @@ const AccountUpdateTreeBase = StructNoJson({
  */
 class AccountUpdateForest extends (_b = MerkleList.create(AccountUpdateTreeBase, merkleListHash)) {
     push(update) {
+        if (isOptionalAccountUpdate(update)) {
+            return super.pushIf(update.isSome, AccountUpdateTree.from(update.value));
+        }
         return super.push(update instanceof AccountUpdate ? AccountUpdateTree.from(update) : update);
     }
     pushIf(condition, update) {
@@ -991,9 +996,14 @@ class AccountUpdateTree extends StructNoJson({
      * See {@link AccountUpdate.approve}.
      */
     approve(update, hash) {
-        accountUpdateLayout()?.disattach(update);
+        let accountUpdate = isOptionalAccountUpdate(update) ? update.value : update;
+        accountUpdateLayout()?.disattach(accountUpdate);
+        if (isOptionalAccountUpdate(update)) {
+            this.children.pushIf(update.isSome, AccountUpdateTree.from(update.value, hash));
+            return;
+        }
         if (update instanceof AccountUpdate) {
-            this.children.pushIf(update.isDummy().not(), AccountUpdateTree.from(update, hash));
+            this.children.push(AccountUpdateTree.from(update, hash));
         }
         else {
             this.children.push(update);
@@ -1145,7 +1155,7 @@ const UnfinishedTree = {
             return {
                 mutable: update,
                 id: update.id,
-                isDummy: update.isDummy(),
+                isDummy: Bool(false),
                 children: UnfinishedForest.empty(),
             };
         }
@@ -1221,8 +1231,17 @@ class AccountUpdateLayout {
         let childNode = this.getOrCreate(child);
         parentNode.children.push(childNode);
     }
+    pushOptionalChild(parent, child) {
+        let parentNode = this.getOrCreate(parent);
+        let childNode = this.getOrCreate(child.value);
+        childNode.isDummy = child.isSome.not();
+        parentNode.children.push(childNode);
+    }
     pushTopLevel(child) {
         this.pushChild(this.root, child);
+    }
+    pushOptionalTopLevel(child) {
+        this.pushOptionalChild(this.root, child);
     }
     setChildren(parent, children) {
         let parentNode = this.getOrCreate(parent);

@@ -44,7 +44,30 @@ You MUST append an entry when any of the following occur during your session:
 
 **How to append:**
 
-1. Add a new entry at the **bottom** of this file (before the `<!-- END LOG -->`
+1. Add a new entry at the **bottom** of this file (before the `---
+
+date: 2026-09-25
+agent: Codex
+session: treasury-account-update-security-backport
+category: circuit-model
+severity: critical
+tags: [account-update, nested-call, security, packaged-output]
+
+### Backport the published 3.1.0 account-update checks without removing fork APIs
+
+**Context:** Treasury depends on the 3.0.0 fork and its UInt128, ledger, and network-state APIs.
+
+**What happened:** Published o1js 3.1.0 removes the witness check bypass, binds nested calls to `this.tokenId`, and uses explicit optional updates. The inspected public GitHub release history does not map those changes to a release commit.
+
+**Root cause:** The previous nested token check referenced the witnessed update itself. Ordinary empty-key updates were also treated as implicit dummy updates.
+
+**Resolution/Workaround:** Copy the relevant published 3.1.0 modules and export OptionalAccountUpdate. Preserve all other fork additions and backend artifacts. Rebuild Node ESM, CommonJS, and browser outputs. The published package tarball SHA-1 is `18914ce5b08cfff8b62b1cf8d3b5777e7da3abaa`.
+
+**Key takeaway:** Dependency installation does not update deployed verification keys. Recompile affected contracts and use a valid deployment or migration path.
+
+**Relevant files:** `src/lib/mina/v1/account-update.ts`, `src/lib/mina/v1/zkapp.ts`, `tests/o1js-security-regression.test.mjs`, `tests/o1js-security-proof.test.mjs`
+
+<!-- END LOG -->`
    marker)
 2. Use the exact template below
 3. Never modify or delete existing entries (append-only)
@@ -186,5 +209,28 @@ parallelized code MUST be tested in WASM, not just native. A passing native test
 does not guarantee WASM safety.
 
 **Relevant files:** `src/bindings/compiled/`, `src/bindings/native/`
+
+---
+
+date: 2026-09-25
+agent: Codex
+session: treasury-account-update-security-backport
+category: circuit-model
+severity: critical
+tags: [account-update, nested-call, security, packaged-output]
+
+### Backport the published 3.1.0 account-update checks without removing fork APIs
+
+**Context:** Treasury depends on the 3.0.0 fork and its UInt128, ledger, and network-state APIs.
+
+**What happened:** Published o1js 3.1.0 removes the witness check bypass, binds nested calls to `this.tokenId`, and uses explicit optional updates. The inspected public GitHub release history does not map those changes to a release commit.
+
+**Root cause:** The previous nested token check referenced the witnessed update itself. Ordinary empty-key updates were also treated as implicit dummy updates.
+
+**Resolution/Workaround:** Copy the relevant published 3.1.0 modules and export OptionalAccountUpdate. Preserve all other fork additions and backend artifacts. Rebuild Node ESM, CommonJS, and browser outputs. The published package tarball SHA-1 is `18914ce5b08cfff8b62b1cf8d3b5777e7da3abaa`.
+
+**Key takeaway:** Dependency installation does not update deployed verification keys. Recompile affected contracts and use a valid deployment or migration path.
+
+**Relevant files:** `src/lib/mina/v1/account-update.ts`, `src/lib/mina/v1/zkapp.ts`, `tests/o1js-security-regression.test.mjs`, `tests/o1js-security-proof.test.mjs`
 
 <!-- END LOG -->

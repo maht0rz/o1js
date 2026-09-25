@@ -50,7 +50,7 @@ export { DynamicProof, Proof, type ProofBase } from './lib/proof-system/proof.js
 export { VerificationKey } from './lib/proof-system/verification-key.js';
 export { Empty, SelfProof, Undefined, verify, Void } from './lib/proof-system/zkprogram.js';
 export type { JsonProof } from './lib/proof-system/zkprogram.js';
-export { AccountUpdate, AccountUpdateForest, AccountUpdateTree, Permissions, TokenId, TransactionVersion, ZkappPublicInput, } from './lib/mina/v1/account-update.js';
+export { AccountUpdate, AccountUpdateForest, AccountUpdateTree, OptionalAccountUpdate, Permissions, TokenId, TransactionVersion, ZkappPublicInput, } from './lib/mina/v1/account-update.js';
 export { Account } from './lib/mina/v1/account.js';
 export { TokenAccountUpdateIterator } from './lib/mina/v1/token/forest-iterator.js';
 export { TokenContract } from './lib/mina/v1/token/token-contract.js';

@@ -1,7 +1,7 @@
 import esbuild from 'esbuild';
 import fse, { move } from 'fs-extra';
 import glob from 'glob';
-import { readFile, rename } from 'node:fs/promises';
+import { readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const outputPath = 'dist/web/index.js';
@@ -19,7 +19,7 @@ await fse.copy('src/bindings/js/web', 'dist/web/bindings/js/web', {
 
 const webFiles = glob.sync('dist/web/**/*.web.js');
 await Promise.all(
-  webFiles.map((file) => move(file, file.replace('.web.js', '.js'), { overwrite: true })),
+  webFiles.map((file) => move(file, file.replace('.web.js', '.js'), { overwrite: true }))
 );
 
 await esbuild.build({
@@ -39,26 +39,28 @@ await esbuild.build({
 });
 
 await rename(temporaryOutputPath, outputPath);
+await rename(`${temporaryOutputPath}.map`, `${outputPath}.map`);
+await writeFile(
+  outputPath,
+  (await readFile(outputPath, 'utf8')).replace(
+    'sourceMappingURL=index.bundle.js.map',
+    'sourceMappingURL=index.js.map'
+  )
+);
 
 function srcStringPlugin() {
   return {
     name: 'src-string-plugin',
     setup(build) {
-      build.onResolve(
-        { filter: /^string:/ },
-        async ({ path: importPath, resolveDir }) => ({
-          path: path.resolve(resolveDir, importPath.replace('string:', '')),
-          namespace: 'src-string',
-        }),
-      );
+      build.onResolve({ filter: /^string:/ }, async ({ path: importPath, resolveDir }) => ({
+        path: path.resolve(resolveDir, importPath.replace('string:', '')),
+        namespace: 'src-string',
+      }));
 
-      build.onLoad(
-        { filter: /.*/, namespace: 'src-string' },
-        async ({ path: sourcePath }) => ({
-          contents: await readFile(sourcePath, 'utf8'),
-          loader: 'text',
-        }),
-      );
+      build.onLoad({ filter: /.*/, namespace: 'src-string' }, async ({ path: sourcePath }) => ({
+        contents: await readFile(sourcePath, 'utf8'),
+        loader: 'text',
+      }));
     },
   };
 }

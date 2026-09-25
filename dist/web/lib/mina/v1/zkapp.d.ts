@@ -9,7 +9,7 @@ import { Provable } from '../../provable/provable.js';
 import { ProvablePure, ProvableType } from '../../provable/types/provable-intf.js';
 import { FlexibleProvablePure, InferProvable } from '../../provable/types/struct.js';
 import { Bool, Field } from '../../provable/wrapped.js';
-import { AccountUpdate, AccountUpdateForest, AccountUpdateTree, ZkappPublicInput } from './account-update.js';
+import { AccountUpdate, AccountUpdateForest, AccountUpdateTree, OptionalAccountUpdate, ZkappPublicInput } from './account-update.js';
 import { SmartContractBase } from './smart-contract-base.js';
 export { DeployArgs, SmartContract, declareMethods, method };
 /**
@@ -353,7 +353,7 @@ declare class SmartContract extends SmartContractBase {
      * at once. `approve()` will fail if the zkApp's account update already has children, to prevent you from accidentally
      * excluding important information from the public input.
      */
-    approve(update: AccountUpdate | AccountUpdateTree | AccountUpdateForest): void;
+    approve(update: AccountUpdate | OptionalAccountUpdate | AccountUpdateTree | AccountUpdateForest): void;
     send(args: {
         to: PublicKey | AccountUpdate | SmartContract;
         amount: number | bigint | UInt64;

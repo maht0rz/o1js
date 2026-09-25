@@ -1,20 +1,21 @@
-import { FlexibleProvable } from '../../provable/types/struct.js';
-import { Provable } from '../../provable/provable.js';
-import { Field, Bool } from '../../provable/wrapped.js';
-import { Types } from '../../../bindings/mina-transaction/v1/types.js';
-import { PrivateKey, PublicKey } from '../../provable/crypto/signature.js';
-import { UInt64, UInt32, Int64 } from '../../provable/int.js';
-import type { SmartContract } from './zkapp.js';
-import { Preconditions, Account, Network, CurrentSlot, OrIgnore, ClosedInterval } from './precondition.js';
-import { Empty } from '../../proof-system/zkprogram.js';
-import { Proof } from '../../proof-system/proof.js';
-import { Events as BaseEvents, Actions as BaseActions, MayUseToken as BaseMayUseToken } from '../../../bindings/mina-transaction/v1/transaction-leaves.js';
-import { CallForest } from '../../../mina-signer/src/sign-zkapp-command.js';
-import { MerkleList, MerkleListBase } from '../../provable/merkle-list.js';
-import { Hashed } from '../../provable/packed.js';
 import { From } from '../../../bindings/lib/provable-generic.js';
-export { AccountUpdate, Permissions, ZkappPublicInput, TransactionVersion, AccountUpdateForest, AccountUpdateTree, };
-export { SetOrKeep, Permission, Preconditions, Body, Authorization, FeePayerUnsigned, ZkappCommand, addMissingSignatures, addMissingProofs, Events, Actions, TokenId, CallForest, zkAppProver, dummySignature, LazyProof, AccountUpdateTreeBase, AccountUpdateLayout, hashAccountUpdate, HashedAccountUpdate, };
+import { Actions as BaseActions, Events as BaseEvents, MayUseToken as BaseMayUseToken } from '../../../bindings/mina-transaction/v1/transaction-leaves.js';
+import { Types } from '../../../bindings/mina-transaction/v1/types.js';
+import { CallForest } from '../../../mina-signer/src/sign-zkapp-command.js';
+import { Proof } from '../../proof-system/proof.js';
+import { Empty } from '../../proof-system/zkprogram.js';
+import { PrivateKey, PublicKey } from '../../provable/crypto/signature.js';
+import { Int64, UInt32, UInt64 } from '../../provable/int.js';
+import { MerkleList, MerkleListBase } from '../../provable/merkle-list.js';
+import { Option } from '../../provable/option.js';
+import { Hashed } from '../../provable/packed.js';
+import { Provable } from '../../provable/provable.js';
+import { FlexibleProvable } from '../../provable/types/struct.js';
+import { Bool, Field } from '../../provable/wrapped.js';
+import { Account, ClosedInterval, CurrentSlot, Network, OrIgnore, Preconditions } from './precondition.js';
+import type { SmartContract } from './zkapp.js';
+export { AccountUpdate, AccountUpdateForest, AccountUpdateTree, OptionalAccountUpdate, Permissions, TransactionVersion, ZkappPublicInput, };
+export { AccountUpdateLayout, AccountUpdateTreeBase, Actions, addMissingProofs, addMissingSignatures, Authorization, Body, CallForest, dummySignature, Events, FeePayerUnsigned, hashAccountUpdate, HashedAccountUpdate, LazyProof, Permission, Preconditions, SetOrKeep, TokenId, ZkappCommand, zkAppProver, };
 declare const TransactionVersion: {
     current: () => Types.UInt32;
 };
@@ -33,7 +34,7 @@ type Update = AccountUpdateBody['update'];
 type MayUseToken = BaseMayUseToken;
 declare const MayUseToken: {
     type: {
-        check: ({ parentsOwnToken, inheritFromParent }: Types.MayUseToken) => void;
+        check: ({ parentsOwnToken, inheritFromParent }: BaseMayUseToken) => void;
         toFields: (x: {
             parentsOwnToken: import("../../provable/bool.js").Bool;
             inheritFromParent: import("../../provable/bool.js").Bool;
@@ -654,7 +655,7 @@ declare class AccountUpdate implements Types.AccountUpdate {
     currentSlot: CurrentSlot;
     private isSelf;
     static Actions: {
-        pushEvent(actions: Types.Events, action: import("../../provable/field.js").Field[]): Types.Events;
+        pushEvent(actions: BaseEvents, action: import("../../provable/field.js").Field[]): BaseEvents;
         toFields: (x: {
             data: import("../../provable/field.js").Field[][];
             hash: import("../../provable/field.js").Field;
@@ -724,7 +725,7 @@ declare class AccountUpdate implements Types.AccountUpdate {
         updateSequenceState(state: import("../../provable/field.js").Field, sequenceEventsHash: import("../../provable/field.js").Field): import("../../provable/field.js").Field;
     };
     static Events: {
-        pushEvent(events: Types.Events, event: import("../../provable/field.js").Field[]): Types.Events;
+        pushEvent(events: BaseEvents, event: import("../../provable/field.js").Field[]): BaseEvents;
         toFields: (x: {
             data: import("../../provable/field.js").Field[][];
             hash: import("../../provable/field.js").Field;
@@ -811,7 +812,7 @@ declare class AccountUpdate implements Types.AccountUpdate {
      * For a proof in particular, child account updates are contained in the public input
      * of the proof that authorizes the parent account update.
      */
-    approve(child: AccountUpdate | AccountUpdateTree | AccountUpdateForest): void;
+    approve(child: AccountUpdate | OptionalAccountUpdate | AccountUpdateTree | AccountUpdateForest): void;
     get balance(): {
         addInPlace(x: Int64 | UInt32 | UInt64 | string | number | bigint): void;
         subInPlace(x: Int64 | UInt32 | UInt64 | string | number | bigint): void;
@@ -896,7 +897,6 @@ declare class AccountUpdate implements Types.AccountUpdate {
      */
     static default(address: PublicKey, tokenId?: Field): AccountUpdate;
     static dummy(): AccountUpdate;
-    isDummy(): import("../../provable/bool.js").Bool;
     static defaultFeePayer(address: PublicKey, nonce: UInt32): FeePayerUnsigned;
     static dummyFeePayer(): FeePayerUnsigned;
     /**
@@ -913,7 +913,7 @@ declare class AccountUpdate implements Types.AccountUpdate {
      * See {@link AccountUpdate.create} for more information. In this method, you can pass in
      * a condition that determines whether the account update should be added to the transaction.
      */
-    static createIf(condition: Bool, publicKey: PublicKey, tokenId?: Field): AccountUpdate;
+    static createIf(condition: Bool, publicKey: PublicKey, tokenId?: Field): OptionalAccountUpdate;
     /**
      * Attach account update to the current transaction
      * -- if in a smart contract, to its children
@@ -967,29 +967,16 @@ declare class AccountUpdate implements Types.AccountUpdate {
     static fromFields(fields: Field[], [other, aux]: any[]): AccountUpdate;
     static toValue: (x: Types.AccountUpdate) => import("../../../bindings/mina-transaction/gen/v1/transaction-bigint.js").AccountUpdate;
     static fromValue(value: From<typeof Types.AccountUpdate> | AccountUpdate): AccountUpdate;
-    /**
-     * This function acts as the `check()` method on an `AccountUpdate` that is sent to the Mina node as part of a transaction.
-     *
-     * Background: the Mina node performs most necessary validity checks on account updates, both in- and outside of circuits.
-     * To save constraints, we don't repeat these checks in zkApps in places where we can be sure the checked account updates
-     * will be part of a transaction.
-     *
-     * However, there are a few checks skipped by the Mina node, that could cause vulnerabilities in zkApps if
-     * not checked in the zkApp proof itself. Adding these extra checks is the purpose of this function.
-     */
-    private static clientSideOnlyChecks;
     static witness<T>(resultType: FlexibleProvable<T>, compute: () => Promise<{
         accountUpdate: AccountUpdate;
         result: T;
-    }>, { skipCheck }?: {
-        skipCheck?: boolean | undefined;
-    }): Promise<{
+    }>): Promise<{
         accountUpdate: AccountUpdate;
         result: T;
     }>;
     static MayUseToken: {
         type: {
-            check: ({ parentsOwnToken, inheritFromParent }: Types.MayUseToken) => void;
+            check: ({ parentsOwnToken, inheritFromParent }: BaseMayUseToken) => void;
             toFields: (x: {
                 parentsOwnToken: import("../../provable/bool.js").Bool;
                 inheritFromParent: import("../../provable/bool.js").Bool;
@@ -1075,6 +1062,18 @@ declare class AccountUpdate implements Types.AccountUpdate {
      */
     toPretty(): any;
 }
+declare const OptionalAccountUpdate: import("../../provable/types/provable-intf.js").Provable<Option<AccountUpdate, import("../../../bindings/mina-transaction/gen/v1/transaction-bigint.js").AccountUpdate>, import("../../../bindings/mina-transaction/gen/v1/transaction-bigint.js").AccountUpdate | undefined> & (new (option: {
+    isSome: import("../../provable/bool.js").Bool;
+    value: AccountUpdate;
+}) => Option<AccountUpdate, import("../../../bindings/mina-transaction/gen/v1/transaction-bigint.js").AccountUpdate>) & {
+    fromValue(value: import("../../../bindings/mina-transaction/gen/v1/transaction-bigint.js").AccountUpdate | AccountUpdate | {
+        isSome: boolean | import("../../provable/bool.js").Bool;
+        value: import("../../../bindings/mina-transaction/gen/v1/transaction-bigint.js").AccountUpdate | AccountUpdate;
+    } | undefined): Option<AccountUpdate, import("../../../bindings/mina-transaction/gen/v1/transaction-bigint.js").AccountUpdate>;
+    from(value?: import("../../../bindings/mina-transaction/gen/v1/transaction-bigint.js").AccountUpdate | AccountUpdate | undefined): Option<AccountUpdate, import("../../../bindings/mina-transaction/gen/v1/transaction-bigint.js").AccountUpdate>;
+    none(): Option<AccountUpdate, import("../../../bindings/mina-transaction/gen/v1/transaction-bigint.js").AccountUpdate>;
+};
+type OptionalAccountUpdate = Option<AccountUpdate, From<typeof Types.AccountUpdate>>;
 declare function hashAccountUpdate(update: AccountUpdate): import("../../provable/field.js").Field;
 declare const HashedAccountUpdate_base: {
     new (hash: import("../../provable/field.js").Field, value: import("../../../index.js").Unconstrained<AccountUpdate>): Hashed<AccountUpdate>;
@@ -1227,7 +1226,7 @@ declare class AccountUpdateForest extends AccountUpdateForest_base {
             packed?: [import("../../provable/field.js").Field, number][] | undefined;
         };
     };
-    push(update: AccountUpdate | AccountUpdateTreeBase): void;
+    push(update: AccountUpdate | OptionalAccountUpdate | AccountUpdateTreeBase): void;
     pushIf(condition: Bool, update: AccountUpdate | AccountUpdateTreeBase): void;
     static fromFlatArray(updates: AccountUpdate[]): AccountUpdateForest;
     toFlatArray(mutate?: boolean, depth?: number): AccountUpdate[];
@@ -1290,7 +1289,7 @@ declare class AccountUpdateTree extends AccountUpdateTree_base {
      *
      * See {@link AccountUpdate.approve}.
      */
-    approve(update: AccountUpdate | AccountUpdateTree, hash?: Field): void;
+    approve(update: AccountUpdate | OptionalAccountUpdate | AccountUpdateTree, hash?: Field): void;
     static fromFields(fields: Field[], aux: any): AccountUpdateTree;
     static empty(): AccountUpdateTree;
 }
@@ -1367,7 +1366,9 @@ declare class AccountUpdateLayout {
     get(update: AccountUpdate | AccountUpdateTree): UnfinishedTree | undefined;
     private getOrCreate;
     pushChild(parent: AccountUpdate | UnfinishedTree, child: AccountUpdate | AccountUpdateTree): void;
+    pushOptionalChild(parent: AccountUpdate | UnfinishedTree, child: OptionalAccountUpdate): void;
     pushTopLevel(child: AccountUpdate): void;
+    pushOptionalTopLevel(child: OptionalAccountUpdate): void;
     setChildren(parent: AccountUpdate | UnfinishedTree, children: AccountUpdateForest): void;
     setTopLevel(children: AccountUpdateForest): void;
     disattach(update: AccountUpdate | AccountUpdateTree): UnfinishedTree | undefined;

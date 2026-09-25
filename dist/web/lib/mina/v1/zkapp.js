@@ -273,7 +273,7 @@ function wrapMethod(method, ZkappClass, methodIntf) {
             let { accountUpdate, result: { result, children }, } = await AccountUpdate.witness(provable({
                 result: methodIntf.returnType ?? provable(null),
                 children: AccountUpdateForest,
-            }), runCalledContract, { skipCheck: true });
+            }), runCalledContract);
             // we're back in the _caller's_ circuit now, where we assert stuff about the method call
             // overwrite this.self with the witnessed update, so it's this one we access later in the caller method
             innerContext.selfUpdate = accountUpdate;
@@ -283,7 +283,7 @@ function wrapMethod(method, ZkappClass, methodIntf) {
             insideContract.selfLayout.setChildren(accountUpdate, children);
             // assert that we really called the right zkapp
             accountUpdate.body.publicKey.assertEquals(this.address);
-            accountUpdate.body.tokenId.assertEquals(this.self.body.tokenId);
+            accountUpdate.body.tokenId.assertEquals(this.tokenId);
             // assert that the callee account update has proof authorization. everything else would have much worse security trade-offs,
             // because a one-time change of the callee semantics by using a signature could go unnoticed even if we monitor the callee's
             // onchain verification key

@@ -11542,6 +11542,7 @@ __export(index_exports, {
   Mina: () => mina_exports,
   Nullifier: () => Nullifier,
   Option: () => Option,
+  OptionalAccountUpdate: () => OptionalAccountUpdate,
   Packed: () => Packed,
   Permissions: () => Permissions,
   Pickles: () => Pickles,
@@ -24715,1234 +24716,8 @@ function assertBetween(low, x, high, message) {
 init_wrapped();
 
 // dist/node/lib/mina/v1/account-update.js
-init_provable_derivers();
-init_provable();
-init_wrapped();
 init_bindings2();
-
-// dist/node/lib/mina/v1/precondition.js
-init_provable();
-init_wrapped();
-init_errors();
-
-// dist/node/lib/mina/v1/constants.js
-var TransactionLimits;
-(function(TransactionLimits2) {
-  TransactionLimits2.MAX_ZKAPP_SEGMENT_PER_TRANSACTION = 16;
-  TransactionLimits2.MAX_ACTION_ELEMENTS = 1024;
-  TransactionLimits2.MAX_EVENT_ELEMENTS = 1024;
-})(TransactionLimits || (TransactionLimits = {}));
-var ZkappConstants;
-(function(ZkappConstants2) {
-  ZkappConstants2.MAX_ZKAPP_STATE_FIELDS = 32;
-  ZkappConstants2.ACCOUNT_ACTION_STATE_BUFFER_SIZE = 5;
-  ZkappConstants2.ACCOUNT_CREATION_FEE = 1000000000n;
-})(ZkappConstants || (ZkappConstants = {}));
-
-// dist/node/lib/mina/v1/mina-instance.js
-var defaultAccountCreationFee = 1e9;
-var defaultNetworkConstants = {
-  genesisTimestamp: UInt642.from(0),
-  slotTime: UInt642.from(3 * 60 * 1e3),
-  accountCreationFee: UInt642.from(defaultAccountCreationFee)
-};
-var activeInstance = {
-  getNetworkConstants: () => defaultNetworkConstants,
-  currentSlot: noActiveInstance,
-  hasAccount: noActiveInstance,
-  getAccount: noActiveInstance,
-  getNetworkState: noActiveInstance,
-  sendTransaction: noActiveInstance,
-  transaction: noActiveInstance,
-  fetchEvents: noActiveInstance,
-  fetchActions: noActiveInstance,
-  getActions: noActiveInstance,
-  proofsEnabled: true,
-  getNetworkId: () => "devnet"
-};
-function setActiveInstance(m) {
-  activeInstance = m;
-}
-function noActiveInstance() {
-  throw Error("Must call Mina.setActiveInstance first");
-}
-function currentSlot() {
-  return activeInstance.currentSlot();
-}
-function getAccount(publicKey, tokenId) {
-  return activeInstance.getAccount(publicKey, tokenId);
-}
-function hasAccount(publicKey, tokenId) {
-  return activeInstance.hasAccount(publicKey, tokenId);
-}
-function getNetworkId() {
-  return activeInstance.getNetworkId();
-}
-function getNetworkConstants() {
-  return activeInstance.getNetworkConstants();
-}
-function getNetworkState() {
-  return activeInstance.getNetworkState();
-}
-function getBalance(publicKey, tokenId) {
-  return activeInstance.getAccount(publicKey, tokenId).balance;
-}
-async function fetchEvents(publicKey, tokenId, filterOptions = {}, headers) {
-  return await activeInstance.fetchEvents(publicKey, tokenId, filterOptions, headers);
-}
-async function fetchActions(publicKey, actionStates, tokenId, from, to, headers) {
-  return await activeInstance.fetchActions(publicKey, actionStates, tokenId, from, to, headers);
-}
-function getActions(publicKey, actionStates, tokenId) {
-  return activeInstance.getActions(publicKey, actionStates, tokenId);
-}
-function getProofsEnabled() {
-  return activeInstance.proofsEnabled;
-}
-
-// dist/node/lib/mina/v1/precondition.js
-var NetworkPrecondition = {
-  ignoreAll() {
-    let stakingEpochData = {
-      ledger: { hash: ignore(Field4(0)), totalCurrency: ignore(uint64()) },
-      seed: ignore(Field4(0)),
-      startCheckpoint: ignore(Field4(0)),
-      lockCheckpoint: ignore(Field4(0)),
-      epochLength: ignore(uint32())
-    };
-    let nextEpochData = cloneCircuitValue(stakingEpochData);
-    return {
-      snarkedLedgerHash: ignore(Field4(0)),
-      blockchainLength: ignore(uint32()),
-      minWindowDensity: ignore(uint32()),
-      totalCurrency: ignore(uint64()),
-      globalSlotSinceGenesis: ignore(uint32()),
-      stakingEpochData,
-      nextEpochData
-    };
-  }
-};
-function ignore(dummy) {
-  return { isSome: Bool4(false), value: dummy };
-}
-var uint32 = () => ({ lower: UInt322.from(0), upper: UInt322.MAXINT() });
-var uint64 = () => ({ lower: UInt642.from(0), upper: UInt642.MAXINT() });
-var AccountPrecondition = {
-  ignoreAll() {
-    let appState = [];
-    for (let i = 0; i < ZkappConstants.MAX_ZKAPP_STATE_FIELDS; ++i) {
-      appState.push(ignore(Field4(0)));
-    }
-    return {
-      balance: ignore(uint64()),
-      nonce: ignore(uint32()),
-      receiptChainHash: ignore(Field4(0)),
-      delegate: ignore(PublicKey2.empty()),
-      state: appState,
-      actionState: ignore(Actions.emptyActionState()),
-      provedState: ignore(Bool4(false)),
-      isNew: ignore(Bool4(false))
-    };
-  }
-};
-var GlobalSlotPrecondition = {
-  ignoreAll() {
-    return ignore(uint32());
-  }
-};
-var Preconditions = {
-  ignoreAll() {
-    return {
-      account: AccountPrecondition.ignoreAll(),
-      network: NetworkPrecondition.ignoreAll(),
-      validWhile: GlobalSlotPrecondition.ignoreAll()
-    };
-  }
-};
-function preconditions(accountUpdate, isSelf) {
-  initializePreconditions(accountUpdate, isSelf);
-  return {
-    account: Account3(accountUpdate),
-    network: Network(accountUpdate),
-    currentSlot: CurrentSlot(accountUpdate)
-  };
-}
-function Network(accountUpdate) {
-  let layout2 = jsLayout.AccountUpdate.entries.body.entries.preconditions.entries.network;
-  let context2 = getPreconditionContextExn(accountUpdate);
-  let network = preconditionClass(layout2, "network", accountUpdate, context2);
-  let timestamp = {
-    get() {
-      let slot = network.globalSlotSinceGenesis.get();
-      return globalSlotToTimestamp(slot);
-    },
-    getAndRequireEquals() {
-      let slot = network.globalSlotSinceGenesis.getAndRequireEquals();
-      return globalSlotToTimestamp(slot);
-    },
-    requireEquals(value) {
-      let { genesisTimestamp, slotTime } = activeInstance.getNetworkConstants();
-      let slot = timestampToGlobalSlot(value, `Timestamp precondition unsatisfied: the timestamp can only equal numbers of the form ${genesisTimestamp} + k*${slotTime},
-i.e., the genesis timestamp plus an integer number of slots.`);
-      return network.globalSlotSinceGenesis.requireEquals(slot);
-    },
-    requireEqualsIf(condition, value) {
-      let { genesisTimestamp, slotTime } = activeInstance.getNetworkConstants();
-      let slot = timestampToGlobalSlot(value, `Timestamp precondition unsatisfied: the timestamp can only equal numbers of the form ${genesisTimestamp} + k*${slotTime},
-i.e., the genesis timestamp plus an integer number of slots.`);
-      return network.globalSlotSinceGenesis.requireEqualsIf(condition, slot);
-    },
-    requireBetween(lower, upper) {
-      let [slotLower, slotUpper] = timestampToGlobalSlotRange(lower, upper);
-      return network.globalSlotSinceGenesis.requireBetween(slotLower, slotUpper);
-    },
-    requireNothing() {
-      return network.globalSlotSinceGenesis.requireNothing();
-    }
-  };
-  return { ...network, timestamp };
-}
-function Account3(accountUpdate) {
-  let layout2 = jsLayout.AccountUpdate.entries.body.entries.preconditions.entries.account;
-  let context2 = getPreconditionContextExn(accountUpdate);
-  let identity = (x) => x;
-  let update2 = {
-    delegate: {
-      ...preconditionSubclass(accountUpdate, "account.delegate", PublicKey2, context2),
-      ...updateSubclass(accountUpdate, "delegate", identity)
-    },
-    verificationKey: updateSubclass(accountUpdate, "verificationKey", identity),
-    permissions: updateSubclass(accountUpdate, "permissions", identity),
-    zkappUri: updateSubclass(accountUpdate, "zkappUri", ZkappUri.fromJSON),
-    tokenSymbol: updateSubclass(accountUpdate, "tokenSymbol", TokenSymbol.from),
-    timing: updateSubclass(accountUpdate, "timing", identity),
-    votingFor: updateSubclass(accountUpdate, "votingFor", identity)
-  };
-  return {
-    ...preconditionClass(layout2, "account", accountUpdate, context2),
-    ...update2
-  };
-}
-function updateSubclass(accountUpdate, key, transform) {
-  return {
-    set(value) {
-      accountUpdate.body.update[key].isSome = Bool4(true);
-      accountUpdate.body.update[key].value = transform(value);
-    }
-  };
-}
-function CurrentSlot(accountUpdate) {
-  let context2 = getPreconditionContextExn(accountUpdate);
-  return {
-    requireBetween(lower, upper) {
-      context2.constrained.add("validWhile");
-      let property = accountUpdate.body.preconditions.validWhile;
-      ensureConsistentPrecondition(property, Bool4(true), { lower, upper }, "validWhile");
-      property.isSome = Bool4(true);
-      property.value.lower = lower;
-      property.value.upper = upper;
-    }
-  };
-}
-var unimplementedPreconditions = [
-  // unimplemented because its not checked in the protocol
-  "network.stakingEpochData.seed",
-  "network.nextEpochData.seed"
-];
-var baseMap = { UInt64: UInt642, UInt32: UInt322, Field: Field4, Bool: Bool4, PublicKey: PublicKey2, ActionState };
-function getProvableType(layout2) {
-  let typeName = layout2.checkedTypeName ?? layout2.type;
-  let type = baseMap[typeName];
-  assert2(type !== void 0, `Unknown precondition base type ${typeName}`);
-  return type;
-}
-function preconditionClass(layout2, baseKey, accountUpdate, context2) {
-  if (layout2.type === "option") {
-    if (layout2.optionType === "closedInterval") {
-      let baseType = getProvableType(layout2.inner.entries.lower);
-      return preconditionSubClassWithRange(accountUpdate, baseKey, baseType, context2);
-    } else if (layout2.optionType === "flaggedOption") {
-      let baseType = getProvableType(layout2.inner);
-      return preconditionSubclass(accountUpdate, baseKey, baseType, context2);
-    }
-  } else if (layout2.type === "array") {
-    return {};
-  } else if (layout2.type === "object") {
-    return Object.fromEntries(layout2.keys.map((key) => {
-      let value = layout2.entries[key];
-      return [key, preconditionClass(value, `${baseKey}.${key}`, accountUpdate, context2)];
-    }));
-  } else
-    throw Error("bug");
-}
-function preconditionSubClassWithRange(accountUpdate, longKey, fieldType, context2) {
-  return {
-    ...preconditionSubclass(accountUpdate, longKey, fieldType, context2),
-    requireBetween(lower, upper) {
-      context2.constrained.add(longKey);
-      let property = getPath(accountUpdate.body.preconditions, longKey);
-      let newValue = { lower, upper };
-      ensureConsistentPrecondition(property, Bool4(true), newValue, longKey);
-      property.isSome = Bool4(true);
-      property.value = newValue;
-    }
-  };
-}
-function defaultLower(fieldType) {
-  assert2(fieldType === UInt322 || fieldType === UInt642);
-  return fieldType.zero;
-}
-function defaultUpper(fieldType) {
-  assert2(fieldType === UInt322 || fieldType === UInt642);
-  return fieldType.MAXINT();
-}
-function preconditionSubclass(accountUpdate, longKey, fieldType, context2) {
-  if (fieldType === void 0) {
-    throw Error(`this.${longKey}: fieldType undefined`);
-  }
-  let obj = {
-    get() {
-      if (unimplementedPreconditions.includes(longKey)) {
-        let self = context2.isSelf ? "this" : "accountUpdate";
-        throw Error(`${self}.${longKey}.get() is not implemented yet.`);
-      }
-      let { read, vars } = context2;
-      read.add(longKey);
-      return vars[longKey] ??= getVariable(accountUpdate, longKey, fieldType);
-    },
-    getAndRequireEquals() {
-      let value = obj.get();
-      obj.requireEquals(value);
-      return value;
-    },
-    requireEquals(value) {
-      context2.constrained.add(longKey);
-      let property = getPath(accountUpdate.body.preconditions, longKey);
-      if ("isSome" in property) {
-        let isInterval = "lower" in property.value && "upper" in property.value;
-        let newValue = isInterval ? { lower: value, upper: value } : value;
-        ensureConsistentPrecondition(property, Bool4(true), newValue, longKey);
-        property.isSome = Bool4(true);
-        property.value = newValue;
-      } else {
-        setPath(accountUpdate.body.preconditions, longKey, value);
-      }
-    },
-    requireEqualsIf(condition, value) {
-      context2.constrained.add(longKey);
-      let property = getPath(accountUpdate.body.preconditions, longKey);
-      assert2("isSome" in property);
-      if ("lower" in property.value && "upper" in property.value) {
-        let lower = Provable.if(condition, fieldType, value, defaultLower(fieldType));
-        let upper = Provable.if(condition, fieldType, value, defaultUpper(fieldType));
-        ensureConsistentPrecondition(property, condition, { lower, upper }, longKey);
-        property.isSome = condition;
-        property.value.lower = lower;
-        property.value.upper = upper;
-      } else {
-        let newValue = Provable.if(condition, fieldType, value, fieldType.empty());
-        ensureConsistentPrecondition(property, condition, newValue, longKey);
-        property.isSome = condition;
-        property.value = newValue;
-      }
-    },
-    requireNothing() {
-      let property = getPath(accountUpdate.body.preconditions, longKey);
-      if ("isSome" in property) {
-        property.isSome = Bool4(false);
-        if ("lower" in property.value && "upper" in property.value) {
-          property.value.lower = defaultLower(fieldType);
-          property.value.upper = defaultUpper(fieldType);
-        } else {
-          property.value = fieldType.empty();
-        }
-      }
-      context2.constrained.add(longKey);
-    }
-  };
-  return obj;
-}
-function getVariable(accountUpdate, longKey, fieldType) {
-  return Provable.witness(fieldType, () => {
-    let [accountOrNetwork, ...rest] = longKey.split(".");
-    let key = rest.join(".");
-    let value;
-    if (accountOrNetwork === "account") {
-      let account = getAccountPreconditions(accountUpdate.body);
-      value = account[key];
-    } else if (accountOrNetwork === "network") {
-      let networkState = activeInstance.getNetworkState();
-      value = getPath(networkState, key);
-    } else if (accountOrNetwork === "validWhile") {
-      let networkState = activeInstance.getNetworkState();
-      value = networkState.globalSlotSinceGenesis;
-    } else {
-      throw Error("impossible");
-    }
-    return value;
-  });
-}
-function globalSlotToTimestamp(slot) {
-  let { genesisTimestamp, slotTime } = activeInstance.getNetworkConstants();
-  return UInt642.from(slot).mul(slotTime).add(genesisTimestamp);
-}
-function timestampToGlobalSlot(timestamp, message) {
-  let { genesisTimestamp, slotTime } = activeInstance.getNetworkConstants();
-  let { quotient: slot, rest } = timestamp.sub(genesisTimestamp).divMod(slotTime);
-  rest.value.assertEquals(Field4(0), message);
-  return slot.toUInt32();
-}
-function timestampToGlobalSlotRange(tsLower, tsUpper) {
-  let { genesisTimestamp, slotTime } = activeInstance.getNetworkConstants();
-  let tsLowerInt = Int64.from(tsLower).sub(genesisTimestamp).add(slotTime).sub(1);
-  let lowerCapped = Provable.if(tsLowerInt.isPositive(), UInt642, tsLowerInt.magnitude, UInt642.from(0));
-  let slotLower = lowerCapped.div(slotTime).toUInt32Clamped();
-  let slotUpper = tsUpper.sub(genesisTimestamp).div(slotTime).toUInt32Clamped();
-  return [slotLower, slotUpper];
-}
-function getAccountPreconditions(body) {
-  let { publicKey, tokenId } = body;
-  let hasAccount2 = activeInstance.hasAccount(publicKey, tokenId);
-  if (!hasAccount2) {
-    return {
-      balance: UInt642.zero,
-      nonce: UInt322.zero,
-      receiptChainHash: emptyReceiptChainHash(),
-      actionState: Actions.emptyActionState(),
-      delegate: publicKey,
-      provedState: Bool4(false),
-      isNew: Bool4(true)
-    };
-  }
-  let account = activeInstance.getAccount(publicKey, tokenId);
-  return {
-    balance: account.balance,
-    nonce: account.nonce,
-    receiptChainHash: account.receiptChainHash,
-    actionState: account.zkapp?.actionState?.[0] ?? Actions.emptyActionState(),
-    delegate: account.delegate ?? account.publicKey,
-    provedState: account.zkapp?.provedState ?? Bool4(false),
-    isNew: Bool4(false)
-  };
-}
-function initializePreconditions(accountUpdate, isSelf) {
-  preconditionContexts.set(accountUpdate, {
-    read: /* @__PURE__ */ new Set(),
-    constrained: /* @__PURE__ */ new Set(),
-    vars: {},
-    isSelf
-  });
-}
-function cleanPreconditionsCache(accountUpdate) {
-  let context2 = preconditionContexts.get(accountUpdate);
-  if (context2 !== void 0)
-    context2.vars = {};
-}
-function assertPreconditionInvariants(accountUpdate) {
-  let context2 = getPreconditionContextExn(accountUpdate);
-  let self = context2.isSelf ? "this" : "accountUpdate";
-  let dummyPreconditions = Preconditions.ignoreAll();
-  for (let preconditionPath of context2.read) {
-    if (context2.constrained.has(preconditionPath))
-      continue;
-    let precondition = getPath(accountUpdate.body.preconditions, preconditionPath);
-    let dummy = getPath(dummyPreconditions, preconditionPath);
-    if (!circuitValueEquals(precondition, dummy))
-      continue;
-    let hasRequireBetween = isRangeCondition(precondition);
-    let shortPath = preconditionPath.split(".").pop();
-    let errorMessage = `You used \`${self}.${preconditionPath}.get()\` without adding a precondition that links it to the actual ${shortPath}.
-Consider adding this line to your code:
-${self}.${preconditionPath}.requireEquals(${self}.${preconditionPath}.get());${hasRequireBetween ? `
-You can also add more flexible preconditions with \`${self}.${preconditionPath}.requireBetween(...)\`.` : ""}`;
-    throw Error(errorMessage);
-  }
-}
-function getPreconditionContextExn(accountUpdate) {
-  let c = preconditionContexts.get(accountUpdate);
-  if (c === void 0)
-    throw Error("bug: precondition context not found");
-  return c;
-}
-function ensureConsistentPrecondition(property, newIsSome, value, name) {
-  if (!property.isSome.isConstant() || property.isSome.toBoolean()) {
-    let errorMessage = `
-Precondition Error: Precondition Error: Attempting to set a precondition that is already set for '${name}'.
-'${name}' represents the field or value you're trying to set a precondition for.
-Preconditions must be set only once to avoid overwriting previous assertions. 
-For example, do not use 'requireBetween()' or 'requireEquals()' multiple times on the same field.
-
-Recommendation:
-Ensure that preconditions for '${name}' are set in a single place and are not overwritten. If you need to update a precondition,
-consider refactoring your code to consolidate all assertions for '${name}' before setting the precondition.
-
-Example of Correct Usage:
-// Incorrect Usage:
-timestamp.requireBetween(newUInt32(0n), newUInt32(2n));
-timestamp.requireBetween(newUInt32(1n), newUInt32(3n));
-
-// Correct Usage:
-timestamp.requireBetween(new UInt32(1n), new UInt32(2n));
-`;
-    property.isSome.assertEquals(newIsSome, errorMessage);
-    if ("lower" in property.value && "upper" in property.value) {
-      property.value.lower.assertEquals(value.lower, errorMessage);
-      property.value.upper.assertEquals(value.lower, errorMessage);
-    } else {
-      property.value.assertEquals(value, errorMessage);
-    }
-  }
-}
-var preconditionContexts = /* @__PURE__ */ new WeakMap();
-function isRangeCondition(condition) {
-  return "isSome" in condition && "lower" in condition.value;
-}
-function getPath(obj, path) {
-  let pathArray = path.split(".").reverse();
-  while (pathArray.length > 0) {
-    let key = pathArray.pop();
-    obj = obj[key];
-  }
-  return obj;
-}
-function setPath(obj, path, value) {
-  let pathArray = path.split(".");
-  let key = pathArray.pop();
-  getPath(obj, pathArray.join("."))[key] = value;
-}
-
-// dist/node/lib/proof-system/zkprogram.js
-init_bindings2();
-init_cache();
 init_constants();
-init_binable();
-init_base();
-init_fields2();
-init_provable_context();
-init_provable();
-init_provable_intf();
-
-// dist/node/lib/provable/types/util.js
-init_provable_intf();
-init_witness();
-function emptyWitness(type) {
-  return witness(type, () => ProvableType.synthesize(type));
-}
-
-// dist/node/lib/proof-system/zkprogram.js
-init_wrapped();
-init_errors();
-init_cache2();
-
-// dist/node/lib/proof-system/prover-keys.js
-init_bindings2();
-init_bindings();
-init_cache2();
-var KeyType;
-(function(KeyType2) {
-  KeyType2[KeyType2["StepProvingKey"] = 0] = "StepProvingKey";
-  KeyType2[KeyType2["StepVerificationKey"] = 1] = "StepVerificationKey";
-  KeyType2[KeyType2["WrapProvingKey"] = 2] = "WrapProvingKey";
-  KeyType2[KeyType2["WrapVerificationKey"] = 3] = "WrapVerificationKey";
-})(KeyType || (KeyType = {}));
-function parseHeader(programName, methods, header) {
-  let hash3 = Pickles.util.fromMlString(header[1][2][6]);
-  switch (header[0]) {
-    case KeyType.StepProvingKey:
-    case KeyType.StepVerificationKey: {
-      let kind = snarkKeyStringKind[header[0]];
-      let methodIndex = header[1][3];
-      let methodName = methods[methodIndex].methodName;
-      let persistentId = sanitize(`${kind}-${programName}-${methodName}`);
-      let uniqueId = sanitize(`${kind}-${programName}-${methodIndex}-${methodName}-${hash3}`);
-      return {
-        version: cacheHeaderVersion,
-        uniqueId,
-        kind,
-        persistentId,
-        programName,
-        methodName,
-        methodIndex,
-        hash: hash3,
-        dataType: snarkKeySerializationType[header[0]]
-      };
-    }
-    case KeyType.WrapProvingKey:
-    case KeyType.WrapVerificationKey: {
-      let kind = snarkKeyStringKind[header[0]];
-      let dataType = snarkKeySerializationType[header[0]];
-      let persistentId = sanitize(`${kind}-${programName}`);
-      let uniqueId = sanitize(`${kind}-${programName}-${hash3}`);
-      return {
-        version: cacheHeaderVersion,
-        uniqueId,
-        kind,
-        persistentId,
-        programName,
-        hash: hash3,
-        dataType
-      };
-    }
-  }
-}
-function encodeProverKey(value) {
-  switch (value[0]) {
-    case KeyType.StepProvingKey: {
-      let index = value[1][1];
-      return wasm3.caml_pasta_fp_plonk_index_encode(index);
-    }
-    case KeyType.StepVerificationKey: {
-      let vkMl = value[1];
-      const rustConversion = getRustConversion(wasm3);
-      let vkWasm = rustConversion.fp.verifierIndexToRust(vkMl);
-      let string = wasm3.caml_pasta_fp_plonk_verifier_index_serialize(vkWasm);
-      return new TextEncoder().encode(string);
-    }
-    case KeyType.WrapProvingKey: {
-      let index = value[1][1];
-      return wasm3.caml_pasta_fq_plonk_index_encode(index);
-    }
-    case KeyType.WrapVerificationKey: {
-      let vk = value[1];
-      let string = Pickles.encodeVerificationKey(vk);
-      return new TextEncoder().encode(string);
-    }
-    default:
-      value;
-      throw Error("unreachable");
-  }
-}
-function decodeProverKey(header, bytes) {
-  switch (header[0]) {
-    case KeyType.StepProvingKey: {
-      let index = wasm3.caml_pasta_fp_plonk_index_decode(bytes, Pickles.loadSrsFp());
-      let cs = header[1][4];
-      return [KeyType.StepProvingKey, [0, index, cs]];
-    }
-    case KeyType.StepVerificationKey: {
-      let srs3 = Pickles.loadSrsFp();
-      let string = new TextDecoder().decode(bytes);
-      let vkWasm = wasm3.caml_pasta_fp_plonk_verifier_index_deserialize(srs3, string);
-      const rustConversion = getRustConversion(wasm3);
-      let vkMl = rustConversion.fp.verifierIndexFromRust(vkWasm);
-      return [KeyType.StepVerificationKey, vkMl];
-    }
-    case KeyType.WrapProvingKey: {
-      let index = wasm3.caml_pasta_fq_plonk_index_decode(bytes, Pickles.loadSrsFq());
-      let cs = header[1][3];
-      return [KeyType.WrapProvingKey, [0, index, cs]];
-    }
-    case KeyType.WrapVerificationKey: {
-      let string = new TextDecoder().decode(bytes);
-      let vk = Pickles.decodeVerificationKey(string);
-      return [KeyType.WrapVerificationKey, vk];
-    }
-    default:
-      header;
-      throw Error("unreachable");
-  }
-}
-function sanitize(string) {
-  return string.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
-}
-var snarkKeyStringKind = {
-  [KeyType.StepProvingKey]: "step-pk",
-  [KeyType.StepVerificationKey]: "step-vk",
-  [KeyType.WrapProvingKey]: "wrap-pk",
-  [KeyType.WrapVerificationKey]: "wrap-vk"
-};
-var snarkKeySerializationType = {
-  [KeyType.StepProvingKey]: "bytes",
-  [KeyType.StepVerificationKey]: "string",
-  [KeyType.WrapProvingKey]: "bytes",
-  [KeyType.WrapVerificationKey]: "string"
-};
-
-// dist/node/lib/proof-system/verification-key.js
-init_bindings2();
-init_provable_context();
-init_provable();
-init_provable_derivers();
-init_wrapped();
-var VerificationKey2 = class _VerificationKey extends Struct({
-  ...provable({ data: String, hash: Field4 }),
-  toJSON({ data, hash: hash3 }) {
-    return { data, hash: hash3.toString() };
-  }
-}) {
-  static async dummy() {
-    await initializeBindings();
-    const [, data, hash3] = Pickles.dummyVerificationKey();
-    return new _VerificationKey({
-      data,
-      hash: Field4(hash3)
-    });
-  }
-  static dummySync() {
-    return new _VerificationKey({
-      ...RAW_VERIFICATION_KEY,
-      hash: Field4(RAW_VERIFICATION_KEY.hash)
-    });
-  }
-  static async fromData(data) {
-    let hash3;
-    await Provable.runAndCheck(async () => {
-      let vk = Pickles.sideLoaded.vkToCircuit(() => data);
-      let hash_ = inCircuitVkHash(vk);
-      Provable.asProver(() => {
-        hash3 = hash_.toConstant();
-      });
-    });
-    return new _VerificationKey({ data, hash: hash3 });
-  }
-  static async checkValidity(key) {
-    try {
-      let { runAndCheckSync } = await synchronousRunners();
-      runAndCheckSync(() => {
-        let vk = Pickles.sideLoaded.vkToCircuit(() => key.data);
-        let inCircuitHash = inCircuitVkHash(vk);
-        inCircuitHash.assertEquals(key.hash);
-      });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-};
-var RAW_VERIFICATION_KEY = {
-  hash: "3392518251768960475377392625298437850623664973002200885669375116181514017494",
-  // oxlint-disable-line
-  data: "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"
-};
-
-// dist/node/lib/proof-system/zkprogram.js
-var Undefined = EmptyUndefined();
-var Empty = Undefined;
-var Void = EmptyVoid();
-function createProgramState() {
-  let methodCache = /* @__PURE__ */ new Map();
-  return {
-    setNonPureOutput(value) {
-      methodCache.set("__nonPureOutput__", value);
-    },
-    getNonPureOutput() {
-      let entry = methodCache.get("__nonPureOutput__");
-      if (entry === void 0)
-        return [];
-      return entry;
-    },
-    setAuxiliaryOutput(value, methodName) {
-      methodCache.set(methodName, value);
-    },
-    getAuxiliaryOutput(methodName) {
-      let entry = methodCache.get(methodName);
-      if (entry === void 0)
-        throw Error(`Auxiliary value for method ${methodName} not defined`);
-      return entry;
-    },
-    reset(key) {
-      methodCache.delete(key);
-    }
-  };
-}
-async function verify2(proof, verificationKey) {
-  await initializeBindings();
-  let picklesProof;
-  let statement;
-  if (typeof proof.proof === "string") {
-    [, picklesProof] = Pickles.proofOfBase64(proof.proof, proof.maxProofsVerified);
-    let input = MlFieldConstArray.to(proof.publicInput.map(Field4));
-    let output = MlFieldConstArray.to(proof.publicOutput.map(Field4));
-    statement = MlPair(input, output);
-  } else {
-    picklesProof = proof.proof;
-    let fields2 = proof.publicFields();
-    let input = MlFieldConstArray.to(fields2.input);
-    let output = MlFieldConstArray.to(fields2.output);
-    statement = MlPair(input, output);
-  }
-  let vk = typeof verificationKey === "string" ? verificationKey : verificationKey.data;
-  return prettifyStacktracePromise(withThreadPool3(() => Pickles.verify(statement, picklesProof, vk)));
-}
-var compiledTags = /* @__PURE__ */ new WeakMap();
-var CompiledTag = {
-  get(tag) {
-    return compiledTags.get(tag);
-  },
-  store(tag, compiledTag) {
-    compiledTags.set(tag, compiledTag);
-  }
-};
-var sideloadedKeysMap = {};
-var SideloadedTag = {
-  get(tag) {
-    return sideloadedKeysMap[tag];
-  },
-  store(tag, compiledTag) {
-    sideloadedKeysMap[tag] = compiledTag;
-  }
-};
-function ZkProgram(config) {
-  let doProving = true;
-  let methods = config.methods;
-  let publicInputType = ProvableType.get(config.publicInput ?? Undefined);
-  let hasPublicInput = publicInputType !== Undefined && publicInputType !== Void;
-  let publicOutputType = ProvableType.get(config.publicOutput ?? Void);
-  let selfTag = { name: config.name };
-  class SelfProof2 extends Proof {
-  }
-  SelfProof2.publicInputType = publicInputType;
-  SelfProof2.publicOutputType = publicOutputType;
-  SelfProof2.tag = () => selfTag;
-  let methodKeys = Object.keys(methods).sort();
-  let methodIntfs = methodKeys.map((key) => sortMethodArguments("program", key, methods[key].privateInputs, ProvableType.get(methods[key].auxiliaryOutput) ?? Undefined, SelfProof2));
-  let methodFunctions = methodKeys.map((key) => methods[key].method);
-  let privateInputTypes = methodIntfs.map((m) => m.args);
-  let maxProofsVerified = void 0;
-  async function getMaxProofsVerified() {
-    if (maxProofsVerified !== void 0)
-      return maxProofsVerified;
-    let methodsMeta = await analyzeMethods();
-    let proofs = methodKeys.map((k) => methodsMeta[k].proofs.length);
-    maxProofsVerified = computeMaxProofsVerified(proofs);
-    return maxProofsVerified;
-  }
-  async function analyzeMethods() {
-    let methodsMeta = {};
-    for (let i = 0; i < methodIntfs.length; i++) {
-      let methodEntry = methodIntfs[i];
-      methodsMeta[methodEntry.methodName] = await analyzeMethod(publicInputType, methodEntry, methodFunctions[i]);
-    }
-    return methodsMeta;
-  }
-  async function analyzeSingleMethod(methodName) {
-    let methodIntf = methodIntfs[methodKeys.indexOf(methodName)];
-    let methodImpl = methodFunctions[methodKeys.indexOf(methodName)];
-    return await analyzeMethod(publicInputType, methodIntf, methodImpl);
-  }
-  let compileOutput;
-  const programState = createProgramState();
-  async function compile({ cache = Cache.FileSystemDefault, forceRecompile = false, proofsEnabled = void 0, withRuntimeTables = false, lazyMode = false } = {}) {
-    doProving = proofsEnabled ?? doProving;
-    if (doProving) {
-      let methodsMeta = await analyzeMethods();
-      let gates = methodKeys.map((k) => methodsMeta[k].gates);
-      let proofs = methodKeys.map((k) => methodsMeta[k].proofs);
-      maxProofsVerified = computeMaxProofsVerified(proofs.map((p3) => p3.length));
-      let { provers: provers2, verify: verify4, verificationKey } = await compileProgram({
-        publicInputType,
-        publicOutputType,
-        methodIntfs,
-        methods: methodFunctions,
-        gates,
-        proofs,
-        proofSystemTag: selfTag,
-        cache,
-        forceRecompile,
-        overrideWrapDomain: config.overrideWrapDomain,
-        numChunks: config.numChunks,
-        state: programState,
-        withRuntimeTables,
-        lazyMode
-      });
-      compileOutput = { provers: provers2, verify: verify4, maxProofsVerified };
-      return { verificationKey };
-    } else {
-      return {
-        verificationKey: VerificationKey2.empty()
-      };
-    }
-  }
-  function toRegularProver(key, i) {
-    return async function prove_(inputPublicInput, ...inputArgs) {
-      let publicInput = publicInputType.fromValue(inputPublicInput);
-      let args = zip(inputArgs, privateInputTypes[i]).map(([arg, type]) => ProvableType.get(type).fromValue(arg));
-      if (!doProving) {
-        let id3 = ZkProgramContext.enter();
-        try {
-          let { publicOutput: publicOutput2, auxiliaryOutput: auxiliaryOutput2 } = (hasPublicInput ? await methods[key].method(publicInput, ...args) : await methods[key].method(...args)) ?? {};
-          let proof2 = await SelfProof2.dummy(publicInput, publicOutput2, await getMaxProofsVerified());
-          return { proof: proof2, auxiliaryOutput: auxiliaryOutput2 };
-        } finally {
-          ZkProgramContext.leave(id3);
-        }
-      }
-      if (compileOutput === void 0) {
-        throw Error(`Cannot prove execution of program.${String(key)}(), no prover found. Try calling \`await program.compile()\` first, this will cache provers in the background.
-If you compiled your zkProgram with proofs disabled (\`proofsEnabled = false\`), you have to compile it with proofs enabled first.`);
-      }
-      let picklesProver = compileOutput.provers[i];
-      let maxProofsVerified2 = compileOutput.maxProofsVerified;
-      let { publicInputFields, publicInputAux } = toFieldAndAuxConsts(publicInputType, publicInput);
-      let id2 = snarkContext.enter({
-        witnesses: args,
-        inProver: true,
-        auxInputData: publicInputAux
-      });
-      let result;
-      try {
-        result = await picklesProver(publicInputFields);
-      } finally {
-        snarkContext.leave(id2);
-      }
-      let auxiliaryType = methodIntfs[i].auxiliaryType;
-      let auxiliaryOutputExists = auxiliaryType && auxiliaryType.sizeInFields() !== 0;
-      let auxiliaryOutput;
-      if (auxiliaryOutputExists) {
-        auxiliaryOutput = programState.getAuxiliaryOutput(methodIntfs[i].methodName);
-        programState.reset(methodIntfs[i].methodName);
-      }
-      let [publicOutputFields, proof] = MlPair.from(result);
-      let nonPureOutput = programState.getNonPureOutput();
-      let publicOutput = fromFieldConsts(publicOutputType, publicOutputFields, nonPureOutput);
-      programState.reset("__nonPureOutput__");
-      return {
-        proof: new SelfProof2({
-          publicInput,
-          publicOutput,
-          proof,
-          maxProofsVerified: maxProofsVerified2
-        }),
-        auxiliaryOutput
-      };
-    };
-  }
-  let regularProvers = mapToObject(methodKeys, toRegularProver);
-  let provers = mapObject(regularProvers, (prover) => {
-    if (publicInputType === Undefined || publicInputType === Void) {
-      return (...args) => prover(void 0, ...args);
-    } else {
-      return prover;
-    }
-  });
-  function verify3(proof) {
-    if (!doProving) {
-      return Promise.resolve(true);
-    }
-    if (compileOutput?.verify === void 0) {
-      throw Error(`Cannot verify proof, verification key not found. Try calling \`await program.compile()\` first.`);
-    }
-    let statement = MlPair(toFieldConsts(publicInputType, proof.publicInput), toFieldConsts(publicOutputType, proof.publicOutput));
-    return compileOutput.verify(statement, proof.proof);
-  }
-  async function digest() {
-    let methodsMeta = await analyzeMethods();
-    let digests = methodKeys.map((k) => Field4(BigInt("0x" + methodsMeta[k].digest)));
-    return hashConstant(digests).toBigInt().toString(16);
-  }
-  const program = Object.assign(selfTag, {
-    maxProofsVerified: getMaxProofsVerified,
-    compile,
-    verify: verify3,
-    digest,
-    analyzeMethods,
-    analyzeSingleMethod,
-    publicInputType,
-    publicOutputType,
-    privateInputTypes: mapToObject(methodKeys, (_, i) => privateInputTypes[i]),
-    auxiliaryOutputTypes: Object.fromEntries(methodKeys.map((key) => [key, methods[key].auxiliaryOutput])),
-    rawMethods: Object.fromEntries(methodKeys.map((key) => [key, methods[key].method])),
-    Proof: SelfProof2,
-    proofsEnabled: doProving,
-    setProofsEnabled(proofsEnabled) {
-      doProving = proofsEnabled;
-    }
-  }, provers);
-  Object.defineProperty(program, "proofsEnabled", {
-    get: () => doProving
-  });
-  return program;
-}
-var SelfProof = class extends Proof {
-};
-function sortMethodArguments(programName, methodName, privateInputs, auxiliaryType, selfProof) {
-  privateInputs = privateInputs.map((input) => input === SelfProof ? selfProof : input);
-  let args = privateInputs.map((input, i) => {
-    if (isProvable(input))
-      return input;
-    throw Error(`Argument ${i + 1} of method ${methodName} is not a provable type: ${input}`);
-  });
-  let proofs = args.flatMap(extractProofTypes);
-  let numberOfProofs = proofs.length;
-  proofs.forEach((proof) => {
-    if (proof === ProofBase || proof === Proof || proof === DynamicProof) {
-      throw Error(`You cannot use the \`${proof.name}\` class directly. Instead, define a subclass:
-class MyProof extends ${proof.name}<PublicInput, PublicOutput> { ... }`);
-    }
-  });
-  if (numberOfProofs > 2) {
-    throw Error(`${programName}.${methodName}() has more than two proof arguments, which is not supported.
-Suggestion: You can merge more than two proofs by merging two at a time in a binary tree.`);
-  }
-  return { methodName, args, auxiliaryType };
-}
-function isProvable(type) {
-  let type_ = ProvableType.get(type);
-  return (typeof type_ === "function" || typeof type_ === "object") && type_ !== null && ["toFields", "fromFields", "sizeInFields", "toAuxiliary"].every((s) => s in type_);
-}
-function isDynamicProof(type) {
-  return typeof type === "function" && type.prototype instanceof DynamicProof;
-}
-var maxProofsToWrapDomain = { 0: 0, 1: 1, 2: 1 };
-async function compileProgram({ publicInputType, publicOutputType, methodIntfs, methods, gates, proofs, proofSystemTag, cache, forceRecompile, overrideWrapDomain, numChunks, state: state2, withRuntimeTables, lazyMode }) {
-  await initializeBindings();
-  if (methodIntfs.length === 0)
-    throw Error(`The Program you are trying to compile has no methods.
-Try adding a method to your ZkProgram or SmartContract.
-If you are using a SmartContract, make sure you are using the @method decorator.`);
-  let rules = methodIntfs.map((methodEntry, i) => picklesRuleFromFunction(publicInputType, publicOutputType, methods[i], proofSystemTag, methodEntry, gates[i], proofs[i], state2, withRuntimeTables));
-  let maxProofs = computeMaxProofsVerified(proofs.map((p3) => p3.length));
-  overrideWrapDomain ??= maxProofsToWrapDomain[maxProofs];
-  let picklesCache = [
-    0,
-    function read_(mlHeader) {
-      if (forceRecompile)
-        return MlResult.unitError();
-      let header = parseHeader(proofSystemTag.name, methodIntfs, mlHeader);
-      let result = readCache(cache, header, (bytes) => decodeProverKey(mlHeader, bytes));
-      if (result === void 0)
-        return MlResult.unitError();
-      return MlResult.ok(result);
-    },
-    function write_(mlHeader, value) {
-      if (!cache.canWrite)
-        return MlResult.unitError();
-      let header = parseHeader(proofSystemTag.name, methodIntfs, mlHeader);
-      let didWrite = writeCache(cache, header, encodeProverKey(value));
-      if (!didWrite)
-        return MlResult.unitError();
-      return MlResult.ok(void 0);
-    },
-    MlBool(cache.canWrite)
-  ];
-  let { verificationKey, provers, verify: verify3, tag } = await prettifyStacktracePromise(withThreadPool3(async () => {
-    let result;
-    let id2 = snarkContext.enter({ inCompile: true });
-    setSrsCache(cache);
-    try {
-      result = Pickles.compile(MlArray.to(rules), {
-        publicInputSize: publicInputType.sizeInFields(),
-        publicOutputSize: publicOutputType.sizeInFields(),
-        storable: picklesCache,
-        overrideWrapDomain,
-        numChunks: numChunks ?? 1,
-        lazyMode: lazyMode ?? false
-      });
-      let { getVerificationKey, provers: provers2, verify: verify4, tag: tag2 } = result;
-      CompiledTag.store(proofSystemTag, tag2);
-      let [, data, hash3] = await getVerificationKey();
-      let verificationKey2 = { data, hash: Field4(hash3) };
-      return {
-        verificationKey: verificationKey2,
-        provers: MlArray.from(provers2),
-        verify: verify4,
-        tag: tag2
-      };
-    } finally {
-      snarkContext.leave(id2);
-      unsetSrsCache();
-    }
-  }));
-  let wrappedProvers = provers.map((prover) => async function picklesProver(publicInput) {
-    return prettifyStacktracePromise(withThreadPool3(() => prover(publicInput)));
-  });
-  let wrappedVerify = async function picklesVerify(statement, proof) {
-    return prettifyStacktracePromise(withThreadPool3(() => verify3(statement, proof)));
-  };
-  return {
-    verificationKey,
-    provers: wrappedProvers,
-    verify: wrappedVerify,
-    tag
-  };
-}
-async function analyzeMethod(publicInputType, methodIntf, method2) {
-  let result;
-  let proofs;
-  let id2 = ZkProgramContext.enter();
-  try {
-    result = await Provable.constraintSystem(() => {
-      let args = methodIntf.args.map(emptyWitness);
-      args.forEach((value) => extractProofs(value).forEach((proof) => proof.declare()));
-      let publicInput = emptyWitness(publicInputType);
-      if (publicInputType === Undefined || publicInputType === Void)
-        return method2(...args);
-      return method2(publicInput, ...args);
-    });
-    proofs = ZkProgramContext.getDeclaredProofs().map(({ ProofClass }) => ProofClass);
-  } finally {
-    ZkProgramContext.leave(id2);
-  }
-  return { ...result, proofs };
-}
-function inCircuitVkHash(inCircuitVk) {
-  const digest = Pickles.sideLoaded.vkDigest(inCircuitVk);
-  const salt2 = Snarky.poseidon.update(MlFieldArray.to([Field4(0), Field4(0), Field4(0)]), MlFieldArray.to([prefixToField(Field4, prefixes.sideLoadedVK)]));
-  const newState = Snarky.poseidon.update(salt2, digest);
-  const stateFields = MlFieldArray.from(newState);
-  return stateFields[0];
-}
-function picklesRuleFromFunction(publicInputType, publicOutputType, func, proofSystemTag, { methodName, args, auxiliaryType }, gates, verifiedProofs, state2, withRuntimeTables) {
-  async function main(publicInput) {
-    let { witnesses: argsWithoutPublicInput, inProver: inProver2, auxInputData } = snarkContext.get();
-    assert2(!(inProver2 && argsWithoutPublicInput === void 0));
-    let id2 = ZkProgramContext.enter();
-    let finalArgs = [];
-    for (let i = 0; i < args.length; i++) {
-      try {
-        let type = args[i];
-        let value = Provable.witness(type, () => {
-          return argsWithoutPublicInput?.[i] ?? ProvableType.synthesize(type);
-        });
-        finalArgs[i] = value;
-        extractProofs(value).forEach((proof) => proof.declare());
-      } catch (e) {
-        ZkProgramContext.leave(id2);
-        e.message = `Error when witnessing in ${methodName}, argument ${i}: ${e.message}`;
-        throw e;
-      }
-    }
-    let result;
-    let proofs;
-    try {
-      if (publicInputType === Undefined || publicInputType === Void) {
-        result = await func(...finalArgs);
-      } else {
-        let input = fromFieldVars(publicInputType, publicInput, auxInputData);
-        result = await func(input, ...finalArgs);
-      }
-      proofs = ZkProgramContext.getDeclaredProofs();
-    } finally {
-      ZkProgramContext.leave(id2);
-    }
-    if (result?.publicOutput) {
-      let nonPureOutput = publicOutputType.toAuxiliary(result.publicOutput);
-      state2?.setNonPureOutput(nonPureOutput);
-    }
-    assert2(proofs.length === verifiedProofs.length, `Expected ${verifiedProofs.length} proofs, but got ${proofs.length}`);
-    let previousStatements = proofs.map(({ proofInstance }) => {
-      let fields2 = proofInstance.publicFields();
-      let input = MlFieldArray.to(fields2.input);
-      let output = MlFieldArray.to(fields2.output);
-      return MlPair(input, output);
-    });
-    proofs.forEach(({ ProofClass, proofInstance }) => {
-      if (!(proofInstance instanceof DynamicProof))
-        return;
-      const tag = ProofClass.tag();
-      const computedTag = SideloadedTag.get(tag.name);
-      const vk = proofInstance.usedVerificationKey;
-      if (vk === void 0) {
-        throw new Error("proof.verify() not called, call it at least once in your circuit");
-      }
-      if (Provable.inProver()) {
-        Pickles.sideLoaded.inProver(computedTag, vk.data);
-      }
-      const circuitVk = Pickles.sideLoaded.vkToCircuit(() => vk.data);
-      const hash3 = inCircuitVkHash(circuitVk);
-      Field4(hash3).assertEquals(vk.hash, "Provided VerificationKey hash not correct");
-      Pickles.sideLoaded.inCircuit(computedTag, circuitVk);
-    });
-    let hasPublicOutput = publicOutputType.sizeInFields() !== 0;
-    let publicOutput = hasPublicOutput ? publicOutputType.toFields(result.publicOutput) : [];
-    if (state2 !== void 0 && auxiliaryType !== void 0 && auxiliaryType.sizeInFields() !== 0) {
-      Provable.asProver(() => {
-        let { auxiliaryOutput } = result;
-        assert2(auxiliaryOutput !== void 0, `${proofSystemTag.name}.${methodName}(): Auxiliary output is undefined even though the method declares it.`);
-        state2.setAuxiliaryOutput(Provable.toConstant(auxiliaryType, auxiliaryOutput), methodName);
-      });
-    }
-    return {
-      publicOutput: MlFieldArray.to(publicOutput),
-      previousStatements: MlArray.to(previousStatements),
-      previousProofs: MlArray.to(proofs.map((p3) => p3.proofInstance.proof)),
-      shouldVerify: MlArray.to(proofs.map((proof) => proof.proofInstance.shouldVerify.toField().value))
-    };
-  }
-  if (verifiedProofs.length > 2) {
-    throw Error(`${proofSystemTag.name}.${methodName}() has more than two proof arguments, which is not supported.
-Suggestion: You can merge more than two proofs by merging two at a time in a binary tree.`);
-  }
-  let proofsToVerify = verifiedProofs.map((Proof3) => {
-    let tag = Proof3.tag();
-    if (tag === proofSystemTag)
-      return { isSelf: true };
-    else if (isDynamicProof(Proof3)) {
-      let computedTag;
-      if (SideloadedTag.get(tag.name) === void 0) {
-        computedTag = Pickles.sideLoaded.create(tag.name, Proof3.maxProofsVerified, Proof3.publicInputType?.sizeInFields() ?? 0, Proof3.publicOutputType?.sizeInFields() ?? 0, featureFlagsToMlOption(Proof3.featureFlags, withRuntimeTables));
-        SideloadedTag.store(tag.name, computedTag);
-      } else {
-        computedTag = SideloadedTag.get(tag.name);
-      }
-      return { isSelf: false, tag: computedTag };
-    } else {
-      let compiledTag = CompiledTag.get(tag);
-      if (compiledTag === void 0) {
-        throw Error(`${proofSystemTag.name}.compile() depends on ${tag.name}, but we cannot find compilation output for ${tag.name}.
-Try to run ${tag.name}.compile() first.`);
-      }
-      return { isSelf: false, tag: compiledTag };
-    }
-  });
-  let featureFlags = featureFlagsToMlOption(featureFlagsFromGates(gates, withRuntimeTables));
-  return {
-    identifier: methodName,
-    main,
-    featureFlags,
-    proofsToVerify: MlArray.to(proofsToVerify)
-  };
-}
-function computeMaxProofsVerified(proofs) {
-  return proofs.reduce((acc, n) => {
-    assert2(n <= 2, "Too many proofs");
-    return Math.max(acc, n);
-  }, 0);
-}
-function fromFieldVars(type, fields2, auxData = []) {
-  return type.fromFields(MlFieldArray.from(fields2), auxData);
-}
-function fromFieldConsts(type, fields2, aux = []) {
-  return type.fromFields(MlFieldConstArray.from(fields2), aux);
-}
-function toFieldConsts(type, value) {
-  return MlFieldConstArray.to(type.toFields(value));
-}
-function toFieldAndAuxConsts(type, value) {
-  return {
-    publicInputFields: MlFieldConstArray.to(type.toFields(value)),
-    publicInputAux: type.toAuxiliary(value)
-  };
-}
-ZkProgram.Proof = function(program) {
-  var _a2;
-  return _a2 = class ZkProgramProof extends Proof {
-  }, _a2.publicInputType = program.publicInputType, _a2.publicOutputType = program.publicOutputType, _a2.tag = () => program, _a2;
-};
-var dummyProofCache;
-async function dummyBase64Proof() {
-  if (dummyProofCache)
-    return dummyProofCache;
-  let proof = await dummyProof(2, 15);
-  let base64Proof = Pickles.proofToBase64([2, proof]);
-  dummyProofCache = base64Proof;
-  return base64Proof;
-}
-function Prover() {
-  return {
-    async run(witnesses, proverData, callback) {
-      let id2 = snarkContext.enter({ witnesses, proverData, inProver: true });
-      try {
-        return await callback();
-      } finally {
-        snarkContext.leave(id2);
-      }
-    },
-    getData() {
-      return snarkContext.get().proverData;
-    }
-  };
-}
 
 // dist/node/mina-signer/src/memo.js
 init_binable();
@@ -26001,15 +24776,6 @@ var Memo = {
   }
 };
 
-// dist/node/lib/mina/v1/base58-encodings.js
-init_base58();
-init_wrapped();
-var { TokenId: TokenId3, ReceiptChainHash: ReceiptChainHash3, EpochSeed, LedgerHash, StateHash: StateHash3 } = fieldEncodings(Field4);
-
-// dist/node/lib/mina/v1/account-update.js
-init_constants();
-init_fields2();
-
 // dist/node/mina-signer/src/sign-zkapp-command.js
 init_field_bigint();
 init_curve_bigint();
@@ -26017,7 +24783,7 @@ init_curve_bigint();
 // dist/node/mina-signer/src/berkeley/transaction-bigint.js
 var transaction_bigint_exports2 = {};
 __export(transaction_bigint_exports2, {
-  Account: () => Account4,
+  Account: () => Account3,
   AccountUpdate: () => AccountUpdate3,
   ActionState: () => ActionState2,
   Actions: () => Actions2,
@@ -27696,7 +26462,7 @@ var customTypes3 = {
 var { signableFromLayout: signableFromLayout2, toJSONEssential: toJSONEssential3, empty: empty5 } = SignableFromLayout(TypeMap3, customTypes3);
 var ZkappCommand3 = signableFromLayout2(jsLayout2.ZkappCommand);
 var AccountUpdate3 = signableFromLayout2(jsLayout2.AccountUpdate);
-var Account4 = signableFromLayout2(jsLayout2.Account);
+var Account3 = signableFromLayout2(jsLayout2.Account);
 
 // dist/node/mina-signer/src/sign-zkapp-command.js
 init_constants();
@@ -27811,9 +26577,1259 @@ function assertAuthorizationKindValid(accountUpdate) {
     throw Error(`Invalid authorization kind: If \`isProved\` is false, verification key hash must be ${mocks.dummyVerificationKeyHash}, got ${verificationKeyHash}`);
 }
 
-// dist/node/lib/mina/v1/transaction-context.js
-init_global_context();
-var currentTransaction = Context.create();
+// dist/node/lib/mina/v1/account-update.js
+init_fields2();
+
+// dist/node/lib/proof-system/zkprogram.js
+init_bindings2();
+init_cache();
+init_constants();
+init_binable();
+init_base();
+init_fields2();
+init_provable_context();
+init_provable();
+init_provable_intf();
+
+// dist/node/lib/provable/types/util.js
+init_provable_intf();
+init_witness();
+function emptyWitness(type) {
+  return witness(type, () => ProvableType.synthesize(type));
+}
+
+// dist/node/lib/proof-system/zkprogram.js
+init_wrapped();
+init_errors();
+init_cache2();
+
+// dist/node/lib/proof-system/prover-keys.js
+init_bindings2();
+init_bindings();
+init_cache2();
+var KeyType;
+(function(KeyType2) {
+  KeyType2[KeyType2["StepProvingKey"] = 0] = "StepProvingKey";
+  KeyType2[KeyType2["StepVerificationKey"] = 1] = "StepVerificationKey";
+  KeyType2[KeyType2["WrapProvingKey"] = 2] = "WrapProvingKey";
+  KeyType2[KeyType2["WrapVerificationKey"] = 3] = "WrapVerificationKey";
+})(KeyType || (KeyType = {}));
+function parseHeader(programName, methods, header) {
+  let hash3 = Pickles.util.fromMlString(header[1][2][6]);
+  switch (header[0]) {
+    case KeyType.StepProvingKey:
+    case KeyType.StepVerificationKey: {
+      let kind = snarkKeyStringKind[header[0]];
+      let methodIndex = header[1][3];
+      let methodName = methods[methodIndex].methodName;
+      let persistentId = sanitize(`${kind}-${programName}-${methodName}`);
+      let uniqueId = sanitize(`${kind}-${programName}-${methodIndex}-${methodName}-${hash3}`);
+      return {
+        version: cacheHeaderVersion,
+        uniqueId,
+        kind,
+        persistentId,
+        programName,
+        methodName,
+        methodIndex,
+        hash: hash3,
+        dataType: snarkKeySerializationType[header[0]]
+      };
+    }
+    case KeyType.WrapProvingKey:
+    case KeyType.WrapVerificationKey: {
+      let kind = snarkKeyStringKind[header[0]];
+      let dataType = snarkKeySerializationType[header[0]];
+      let persistentId = sanitize(`${kind}-${programName}`);
+      let uniqueId = sanitize(`${kind}-${programName}-${hash3}`);
+      return {
+        version: cacheHeaderVersion,
+        uniqueId,
+        kind,
+        persistentId,
+        programName,
+        hash: hash3,
+        dataType
+      };
+    }
+  }
+}
+function encodeProverKey(value) {
+  switch (value[0]) {
+    case KeyType.StepProvingKey: {
+      let index = value[1][1];
+      return wasm3.caml_pasta_fp_plonk_index_encode(index);
+    }
+    case KeyType.StepVerificationKey: {
+      let vkMl = value[1];
+      const rustConversion = getRustConversion(wasm3);
+      let vkWasm = rustConversion.fp.verifierIndexToRust(vkMl);
+      let string = wasm3.caml_pasta_fp_plonk_verifier_index_serialize(vkWasm);
+      return new TextEncoder().encode(string);
+    }
+    case KeyType.WrapProvingKey: {
+      let index = value[1][1];
+      return wasm3.caml_pasta_fq_plonk_index_encode(index);
+    }
+    case KeyType.WrapVerificationKey: {
+      let vk = value[1];
+      let string = Pickles.encodeVerificationKey(vk);
+      return new TextEncoder().encode(string);
+    }
+    default:
+      value;
+      throw Error("unreachable");
+  }
+}
+function decodeProverKey(header, bytes) {
+  switch (header[0]) {
+    case KeyType.StepProvingKey: {
+      let index = wasm3.caml_pasta_fp_plonk_index_decode(bytes, Pickles.loadSrsFp());
+      let cs = header[1][4];
+      return [KeyType.StepProvingKey, [0, index, cs]];
+    }
+    case KeyType.StepVerificationKey: {
+      let srs3 = Pickles.loadSrsFp();
+      let string = new TextDecoder().decode(bytes);
+      let vkWasm = wasm3.caml_pasta_fp_plonk_verifier_index_deserialize(srs3, string);
+      const rustConversion = getRustConversion(wasm3);
+      let vkMl = rustConversion.fp.verifierIndexFromRust(vkWasm);
+      return [KeyType.StepVerificationKey, vkMl];
+    }
+    case KeyType.WrapProvingKey: {
+      let index = wasm3.caml_pasta_fq_plonk_index_decode(bytes, Pickles.loadSrsFq());
+      let cs = header[1][3];
+      return [KeyType.WrapProvingKey, [0, index, cs]];
+    }
+    case KeyType.WrapVerificationKey: {
+      let string = new TextDecoder().decode(bytes);
+      let vk = Pickles.decodeVerificationKey(string);
+      return [KeyType.WrapVerificationKey, vk];
+    }
+    default:
+      header;
+      throw Error("unreachable");
+  }
+}
+function sanitize(string) {
+  return string.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+}
+var snarkKeyStringKind = {
+  [KeyType.StepProvingKey]: "step-pk",
+  [KeyType.StepVerificationKey]: "step-vk",
+  [KeyType.WrapProvingKey]: "wrap-pk",
+  [KeyType.WrapVerificationKey]: "wrap-vk"
+};
+var snarkKeySerializationType = {
+  [KeyType.StepProvingKey]: "bytes",
+  [KeyType.StepVerificationKey]: "string",
+  [KeyType.WrapProvingKey]: "bytes",
+  [KeyType.WrapVerificationKey]: "string"
+};
+
+// dist/node/lib/proof-system/verification-key.js
+init_bindings2();
+init_provable_context();
+init_provable();
+init_provable_derivers();
+init_wrapped();
+var VerificationKey2 = class _VerificationKey extends Struct({
+  ...provable({ data: String, hash: Field4 }),
+  toJSON({ data, hash: hash3 }) {
+    return { data, hash: hash3.toString() };
+  }
+}) {
+  static async dummy() {
+    await initializeBindings();
+    const [, data, hash3] = Pickles.dummyVerificationKey();
+    return new _VerificationKey({
+      data,
+      hash: Field4(hash3)
+    });
+  }
+  static dummySync() {
+    return new _VerificationKey({
+      ...RAW_VERIFICATION_KEY,
+      hash: Field4(RAW_VERIFICATION_KEY.hash)
+    });
+  }
+  static async fromData(data) {
+    let hash3;
+    await Provable.runAndCheck(async () => {
+      let vk = Pickles.sideLoaded.vkToCircuit(() => data);
+      let hash_ = inCircuitVkHash(vk);
+      Provable.asProver(() => {
+        hash3 = hash_.toConstant();
+      });
+    });
+    return new _VerificationKey({ data, hash: hash3 });
+  }
+  static async checkValidity(key) {
+    try {
+      let { runAndCheckSync } = await synchronousRunners();
+      runAndCheckSync(() => {
+        let vk = Pickles.sideLoaded.vkToCircuit(() => key.data);
+        let inCircuitHash = inCircuitVkHash(vk);
+        inCircuitHash.assertEquals(key.hash);
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+};
+var RAW_VERIFICATION_KEY = {
+  hash: "3392518251768960475377392625298437850623664973002200885669375116181514017494",
+  // oxlint-disable-line
+  data: "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"
+};
+
+// dist/node/lib/proof-system/zkprogram.js
+var Undefined = EmptyUndefined();
+var Empty = Undefined;
+var Void = EmptyVoid();
+function createProgramState() {
+  let methodCache = /* @__PURE__ */ new Map();
+  return {
+    setNonPureOutput(value) {
+      methodCache.set("__nonPureOutput__", value);
+    },
+    getNonPureOutput() {
+      let entry = methodCache.get("__nonPureOutput__");
+      if (entry === void 0)
+        return [];
+      return entry;
+    },
+    setAuxiliaryOutput(value, methodName) {
+      methodCache.set(methodName, value);
+    },
+    getAuxiliaryOutput(methodName) {
+      let entry = methodCache.get(methodName);
+      if (entry === void 0)
+        throw Error(`Auxiliary value for method ${methodName} not defined`);
+      return entry;
+    },
+    reset(key) {
+      methodCache.delete(key);
+    }
+  };
+}
+async function verify2(proof, verificationKey) {
+  await initializeBindings();
+  let picklesProof;
+  let statement;
+  if (typeof proof.proof === "string") {
+    [, picklesProof] = Pickles.proofOfBase64(proof.proof, proof.maxProofsVerified);
+    let input = MlFieldConstArray.to(proof.publicInput.map(Field4));
+    let output = MlFieldConstArray.to(proof.publicOutput.map(Field4));
+    statement = MlPair(input, output);
+  } else {
+    picklesProof = proof.proof;
+    let fields2 = proof.publicFields();
+    let input = MlFieldConstArray.to(fields2.input);
+    let output = MlFieldConstArray.to(fields2.output);
+    statement = MlPair(input, output);
+  }
+  let vk = typeof verificationKey === "string" ? verificationKey : verificationKey.data;
+  return prettifyStacktracePromise(withThreadPool3(() => Pickles.verify(statement, picklesProof, vk)));
+}
+var compiledTags = /* @__PURE__ */ new WeakMap();
+var CompiledTag = {
+  get(tag) {
+    return compiledTags.get(tag);
+  },
+  store(tag, compiledTag) {
+    compiledTags.set(tag, compiledTag);
+  }
+};
+var sideloadedKeysMap = {};
+var SideloadedTag = {
+  get(tag) {
+    return sideloadedKeysMap[tag];
+  },
+  store(tag, compiledTag) {
+    sideloadedKeysMap[tag] = compiledTag;
+  }
+};
+function ZkProgram(config) {
+  let doProving = true;
+  let methods = config.methods;
+  let publicInputType = ProvableType.get(config.publicInput ?? Undefined);
+  let hasPublicInput = publicInputType !== Undefined && publicInputType !== Void;
+  let publicOutputType = ProvableType.get(config.publicOutput ?? Void);
+  let selfTag = { name: config.name };
+  class SelfProof2 extends Proof {
+  }
+  SelfProof2.publicInputType = publicInputType;
+  SelfProof2.publicOutputType = publicOutputType;
+  SelfProof2.tag = () => selfTag;
+  let methodKeys = Object.keys(methods).sort();
+  let methodIntfs = methodKeys.map((key) => sortMethodArguments("program", key, methods[key].privateInputs, ProvableType.get(methods[key].auxiliaryOutput) ?? Undefined, SelfProof2));
+  let methodFunctions = methodKeys.map((key) => methods[key].method);
+  let privateInputTypes = methodIntfs.map((m) => m.args);
+  let maxProofsVerified = void 0;
+  async function getMaxProofsVerified() {
+    if (maxProofsVerified !== void 0)
+      return maxProofsVerified;
+    let methodsMeta = await analyzeMethods();
+    let proofs = methodKeys.map((k) => methodsMeta[k].proofs.length);
+    maxProofsVerified = computeMaxProofsVerified(proofs);
+    return maxProofsVerified;
+  }
+  async function analyzeMethods() {
+    let methodsMeta = {};
+    for (let i = 0; i < methodIntfs.length; i++) {
+      let methodEntry = methodIntfs[i];
+      methodsMeta[methodEntry.methodName] = await analyzeMethod(publicInputType, methodEntry, methodFunctions[i]);
+    }
+    return methodsMeta;
+  }
+  async function analyzeSingleMethod(methodName) {
+    let methodIntf = methodIntfs[methodKeys.indexOf(methodName)];
+    let methodImpl = methodFunctions[methodKeys.indexOf(methodName)];
+    return await analyzeMethod(publicInputType, methodIntf, methodImpl);
+  }
+  let compileOutput;
+  const programState = createProgramState();
+  async function compile({ cache = Cache.FileSystemDefault, forceRecompile = false, proofsEnabled = void 0, withRuntimeTables = false, lazyMode = false } = {}) {
+    doProving = proofsEnabled ?? doProving;
+    if (doProving) {
+      let methodsMeta = await analyzeMethods();
+      let gates = methodKeys.map((k) => methodsMeta[k].gates);
+      let proofs = methodKeys.map((k) => methodsMeta[k].proofs);
+      maxProofsVerified = computeMaxProofsVerified(proofs.map((p3) => p3.length));
+      let { provers: provers2, verify: verify4, verificationKey } = await compileProgram({
+        publicInputType,
+        publicOutputType,
+        methodIntfs,
+        methods: methodFunctions,
+        gates,
+        proofs,
+        proofSystemTag: selfTag,
+        cache,
+        forceRecompile,
+        overrideWrapDomain: config.overrideWrapDomain,
+        numChunks: config.numChunks,
+        state: programState,
+        withRuntimeTables,
+        lazyMode
+      });
+      compileOutput = { provers: provers2, verify: verify4, maxProofsVerified };
+      return { verificationKey };
+    } else {
+      return {
+        verificationKey: VerificationKey2.empty()
+      };
+    }
+  }
+  function toRegularProver(key, i) {
+    return async function prove_(inputPublicInput, ...inputArgs) {
+      let publicInput = publicInputType.fromValue(inputPublicInput);
+      let args = zip(inputArgs, privateInputTypes[i]).map(([arg, type]) => ProvableType.get(type).fromValue(arg));
+      if (!doProving) {
+        let id3 = ZkProgramContext.enter();
+        try {
+          let { publicOutput: publicOutput2, auxiliaryOutput: auxiliaryOutput2 } = (hasPublicInput ? await methods[key].method(publicInput, ...args) : await methods[key].method(...args)) ?? {};
+          let proof2 = await SelfProof2.dummy(publicInput, publicOutput2, await getMaxProofsVerified());
+          return { proof: proof2, auxiliaryOutput: auxiliaryOutput2 };
+        } finally {
+          ZkProgramContext.leave(id3);
+        }
+      }
+      if (compileOutput === void 0) {
+        throw Error(`Cannot prove execution of program.${String(key)}(), no prover found. Try calling \`await program.compile()\` first, this will cache provers in the background.
+If you compiled your zkProgram with proofs disabled (\`proofsEnabled = false\`), you have to compile it with proofs enabled first.`);
+      }
+      let picklesProver = compileOutput.provers[i];
+      let maxProofsVerified2 = compileOutput.maxProofsVerified;
+      let { publicInputFields, publicInputAux } = toFieldAndAuxConsts(publicInputType, publicInput);
+      let id2 = snarkContext.enter({
+        witnesses: args,
+        inProver: true,
+        auxInputData: publicInputAux
+      });
+      let result;
+      try {
+        result = await picklesProver(publicInputFields);
+      } finally {
+        snarkContext.leave(id2);
+      }
+      let auxiliaryType = methodIntfs[i].auxiliaryType;
+      let auxiliaryOutputExists = auxiliaryType && auxiliaryType.sizeInFields() !== 0;
+      let auxiliaryOutput;
+      if (auxiliaryOutputExists) {
+        auxiliaryOutput = programState.getAuxiliaryOutput(methodIntfs[i].methodName);
+        programState.reset(methodIntfs[i].methodName);
+      }
+      let [publicOutputFields, proof] = MlPair.from(result);
+      let nonPureOutput = programState.getNonPureOutput();
+      let publicOutput = fromFieldConsts(publicOutputType, publicOutputFields, nonPureOutput);
+      programState.reset("__nonPureOutput__");
+      return {
+        proof: new SelfProof2({
+          publicInput,
+          publicOutput,
+          proof,
+          maxProofsVerified: maxProofsVerified2
+        }),
+        auxiliaryOutput
+      };
+    };
+  }
+  let regularProvers = mapToObject(methodKeys, toRegularProver);
+  let provers = mapObject(regularProvers, (prover) => {
+    if (publicInputType === Undefined || publicInputType === Void) {
+      return (...args) => prover(void 0, ...args);
+    } else {
+      return prover;
+    }
+  });
+  function verify3(proof) {
+    if (!doProving) {
+      return Promise.resolve(true);
+    }
+    if (compileOutput?.verify === void 0) {
+      throw Error(`Cannot verify proof, verification key not found. Try calling \`await program.compile()\` first.`);
+    }
+    let statement = MlPair(toFieldConsts(publicInputType, proof.publicInput), toFieldConsts(publicOutputType, proof.publicOutput));
+    return compileOutput.verify(statement, proof.proof);
+  }
+  async function digest() {
+    let methodsMeta = await analyzeMethods();
+    let digests = methodKeys.map((k) => Field4(BigInt("0x" + methodsMeta[k].digest)));
+    return hashConstant(digests).toBigInt().toString(16);
+  }
+  const program = Object.assign(selfTag, {
+    maxProofsVerified: getMaxProofsVerified,
+    compile,
+    verify: verify3,
+    digest,
+    analyzeMethods,
+    analyzeSingleMethod,
+    publicInputType,
+    publicOutputType,
+    privateInputTypes: mapToObject(methodKeys, (_, i) => privateInputTypes[i]),
+    auxiliaryOutputTypes: Object.fromEntries(methodKeys.map((key) => [key, methods[key].auxiliaryOutput])),
+    rawMethods: Object.fromEntries(methodKeys.map((key) => [key, methods[key].method])),
+    Proof: SelfProof2,
+    proofsEnabled: doProving,
+    setProofsEnabled(proofsEnabled) {
+      doProving = proofsEnabled;
+    }
+  }, provers);
+  Object.defineProperty(program, "proofsEnabled", {
+    get: () => doProving
+  });
+  return program;
+}
+var SelfProof = class extends Proof {
+};
+function sortMethodArguments(programName, methodName, privateInputs, auxiliaryType, selfProof) {
+  privateInputs = privateInputs.map((input) => input === SelfProof ? selfProof : input);
+  let args = privateInputs.map((input, i) => {
+    if (isProvable(input))
+      return input;
+    throw Error(`Argument ${i + 1} of method ${methodName} is not a provable type: ${input}`);
+  });
+  let proofs = args.flatMap(extractProofTypes);
+  let numberOfProofs = proofs.length;
+  proofs.forEach((proof) => {
+    if (proof === ProofBase || proof === Proof || proof === DynamicProof) {
+      throw Error(`You cannot use the \`${proof.name}\` class directly. Instead, define a subclass:
+class MyProof extends ${proof.name}<PublicInput, PublicOutput> { ... }`);
+    }
+  });
+  if (numberOfProofs > 2) {
+    throw Error(`${programName}.${methodName}() has more than two proof arguments, which is not supported.
+Suggestion: You can merge more than two proofs by merging two at a time in a binary tree.`);
+  }
+  return { methodName, args, auxiliaryType };
+}
+function isProvable(type) {
+  let type_ = ProvableType.get(type);
+  return (typeof type_ === "function" || typeof type_ === "object") && type_ !== null && ["toFields", "fromFields", "sizeInFields", "toAuxiliary"].every((s) => s in type_);
+}
+function isDynamicProof(type) {
+  return typeof type === "function" && type.prototype instanceof DynamicProof;
+}
+var maxProofsToWrapDomain = { 0: 0, 1: 1, 2: 1 };
+async function compileProgram({ publicInputType, publicOutputType, methodIntfs, methods, gates, proofs, proofSystemTag, cache, forceRecompile, overrideWrapDomain, numChunks, state: state2, withRuntimeTables, lazyMode }) {
+  await initializeBindings();
+  if (methodIntfs.length === 0)
+    throw Error(`The Program you are trying to compile has no methods.
+Try adding a method to your ZkProgram or SmartContract.
+If you are using a SmartContract, make sure you are using the @method decorator.`);
+  let rules = methodIntfs.map((methodEntry, i) => picklesRuleFromFunction(publicInputType, publicOutputType, methods[i], proofSystemTag, methodEntry, gates[i], proofs[i], state2, withRuntimeTables));
+  let maxProofs = computeMaxProofsVerified(proofs.map((p3) => p3.length));
+  overrideWrapDomain ??= maxProofsToWrapDomain[maxProofs];
+  let picklesCache = [
+    0,
+    function read_(mlHeader) {
+      if (forceRecompile)
+        return MlResult.unitError();
+      let header = parseHeader(proofSystemTag.name, methodIntfs, mlHeader);
+      let result = readCache(cache, header, (bytes) => decodeProverKey(mlHeader, bytes));
+      if (result === void 0)
+        return MlResult.unitError();
+      return MlResult.ok(result);
+    },
+    function write_(mlHeader, value) {
+      if (!cache.canWrite)
+        return MlResult.unitError();
+      let header = parseHeader(proofSystemTag.name, methodIntfs, mlHeader);
+      let didWrite = writeCache(cache, header, encodeProverKey(value));
+      if (!didWrite)
+        return MlResult.unitError();
+      return MlResult.ok(void 0);
+    },
+    MlBool(cache.canWrite)
+  ];
+  let { verificationKey, provers, verify: verify3, tag } = await prettifyStacktracePromise(withThreadPool3(async () => {
+    let result;
+    let id2 = snarkContext.enter({ inCompile: true });
+    setSrsCache(cache);
+    try {
+      result = Pickles.compile(MlArray.to(rules), {
+        publicInputSize: publicInputType.sizeInFields(),
+        publicOutputSize: publicOutputType.sizeInFields(),
+        storable: picklesCache,
+        overrideWrapDomain,
+        numChunks: numChunks ?? 1,
+        lazyMode: lazyMode ?? false
+      });
+      let { getVerificationKey, provers: provers2, verify: verify4, tag: tag2 } = result;
+      CompiledTag.store(proofSystemTag, tag2);
+      let [, data, hash3] = await getVerificationKey();
+      let verificationKey2 = { data, hash: Field4(hash3) };
+      return {
+        verificationKey: verificationKey2,
+        provers: MlArray.from(provers2),
+        verify: verify4,
+        tag: tag2
+      };
+    } finally {
+      snarkContext.leave(id2);
+      unsetSrsCache();
+    }
+  }));
+  let wrappedProvers = provers.map((prover) => async function picklesProver(publicInput) {
+    return prettifyStacktracePromise(withThreadPool3(() => prover(publicInput)));
+  });
+  let wrappedVerify = async function picklesVerify(statement, proof) {
+    return prettifyStacktracePromise(withThreadPool3(() => verify3(statement, proof)));
+  };
+  return {
+    verificationKey,
+    provers: wrappedProvers,
+    verify: wrappedVerify,
+    tag
+  };
+}
+async function analyzeMethod(publicInputType, methodIntf, method2) {
+  let result;
+  let proofs;
+  let id2 = ZkProgramContext.enter();
+  try {
+    result = await Provable.constraintSystem(() => {
+      let args = methodIntf.args.map(emptyWitness);
+      args.forEach((value) => extractProofs(value).forEach((proof) => proof.declare()));
+      let publicInput = emptyWitness(publicInputType);
+      if (publicInputType === Undefined || publicInputType === Void)
+        return method2(...args);
+      return method2(publicInput, ...args);
+    });
+    proofs = ZkProgramContext.getDeclaredProofs().map(({ ProofClass }) => ProofClass);
+  } finally {
+    ZkProgramContext.leave(id2);
+  }
+  return { ...result, proofs };
+}
+function inCircuitVkHash(inCircuitVk) {
+  const digest = Pickles.sideLoaded.vkDigest(inCircuitVk);
+  const salt2 = Snarky.poseidon.update(MlFieldArray.to([Field4(0), Field4(0), Field4(0)]), MlFieldArray.to([prefixToField(Field4, prefixes.sideLoadedVK)]));
+  const newState = Snarky.poseidon.update(salt2, digest);
+  const stateFields = MlFieldArray.from(newState);
+  return stateFields[0];
+}
+function picklesRuleFromFunction(publicInputType, publicOutputType, func, proofSystemTag, { methodName, args, auxiliaryType }, gates, verifiedProofs, state2, withRuntimeTables) {
+  async function main(publicInput) {
+    let { witnesses: argsWithoutPublicInput, inProver: inProver2, auxInputData } = snarkContext.get();
+    assert2(!(inProver2 && argsWithoutPublicInput === void 0));
+    let id2 = ZkProgramContext.enter();
+    let finalArgs = [];
+    for (let i = 0; i < args.length; i++) {
+      try {
+        let type = args[i];
+        let value = Provable.witness(type, () => {
+          return argsWithoutPublicInput?.[i] ?? ProvableType.synthesize(type);
+        });
+        finalArgs[i] = value;
+        extractProofs(value).forEach((proof) => proof.declare());
+      } catch (e) {
+        ZkProgramContext.leave(id2);
+        e.message = `Error when witnessing in ${methodName}, argument ${i}: ${e.message}`;
+        throw e;
+      }
+    }
+    let result;
+    let proofs;
+    try {
+      if (publicInputType === Undefined || publicInputType === Void) {
+        result = await func(...finalArgs);
+      } else {
+        let input = fromFieldVars(publicInputType, publicInput, auxInputData);
+        result = await func(input, ...finalArgs);
+      }
+      proofs = ZkProgramContext.getDeclaredProofs();
+    } finally {
+      ZkProgramContext.leave(id2);
+    }
+    if (result?.publicOutput) {
+      let nonPureOutput = publicOutputType.toAuxiliary(result.publicOutput);
+      state2?.setNonPureOutput(nonPureOutput);
+    }
+    assert2(proofs.length === verifiedProofs.length, `Expected ${verifiedProofs.length} proofs, but got ${proofs.length}`);
+    let previousStatements = proofs.map(({ proofInstance }) => {
+      let fields2 = proofInstance.publicFields();
+      let input = MlFieldArray.to(fields2.input);
+      let output = MlFieldArray.to(fields2.output);
+      return MlPair(input, output);
+    });
+    proofs.forEach(({ ProofClass, proofInstance }) => {
+      if (!(proofInstance instanceof DynamicProof))
+        return;
+      const tag = ProofClass.tag();
+      const computedTag = SideloadedTag.get(tag.name);
+      const vk = proofInstance.usedVerificationKey;
+      if (vk === void 0) {
+        throw new Error("proof.verify() not called, call it at least once in your circuit");
+      }
+      if (Provable.inProver()) {
+        Pickles.sideLoaded.inProver(computedTag, vk.data);
+      }
+      const circuitVk = Pickles.sideLoaded.vkToCircuit(() => vk.data);
+      const hash3 = inCircuitVkHash(circuitVk);
+      Field4(hash3).assertEquals(vk.hash, "Provided VerificationKey hash not correct");
+      Pickles.sideLoaded.inCircuit(computedTag, circuitVk);
+    });
+    let hasPublicOutput = publicOutputType.sizeInFields() !== 0;
+    let publicOutput = hasPublicOutput ? publicOutputType.toFields(result.publicOutput) : [];
+    if (state2 !== void 0 && auxiliaryType !== void 0 && auxiliaryType.sizeInFields() !== 0) {
+      Provable.asProver(() => {
+        let { auxiliaryOutput } = result;
+        assert2(auxiliaryOutput !== void 0, `${proofSystemTag.name}.${methodName}(): Auxiliary output is undefined even though the method declares it.`);
+        state2.setAuxiliaryOutput(Provable.toConstant(auxiliaryType, auxiliaryOutput), methodName);
+      });
+    }
+    return {
+      publicOutput: MlFieldArray.to(publicOutput),
+      previousStatements: MlArray.to(previousStatements),
+      previousProofs: MlArray.to(proofs.map((p3) => p3.proofInstance.proof)),
+      shouldVerify: MlArray.to(proofs.map((proof) => proof.proofInstance.shouldVerify.toField().value))
+    };
+  }
+  if (verifiedProofs.length > 2) {
+    throw Error(`${proofSystemTag.name}.${methodName}() has more than two proof arguments, which is not supported.
+Suggestion: You can merge more than two proofs by merging two at a time in a binary tree.`);
+  }
+  let proofsToVerify = verifiedProofs.map((Proof3) => {
+    let tag = Proof3.tag();
+    if (tag === proofSystemTag)
+      return { isSelf: true };
+    else if (isDynamicProof(Proof3)) {
+      let computedTag;
+      if (SideloadedTag.get(tag.name) === void 0) {
+        computedTag = Pickles.sideLoaded.create(tag.name, Proof3.maxProofsVerified, Proof3.publicInputType?.sizeInFields() ?? 0, Proof3.publicOutputType?.sizeInFields() ?? 0, featureFlagsToMlOption(Proof3.featureFlags, withRuntimeTables));
+        SideloadedTag.store(tag.name, computedTag);
+      } else {
+        computedTag = SideloadedTag.get(tag.name);
+      }
+      return { isSelf: false, tag: computedTag };
+    } else {
+      let compiledTag = CompiledTag.get(tag);
+      if (compiledTag === void 0) {
+        throw Error(`${proofSystemTag.name}.compile() depends on ${tag.name}, but we cannot find compilation output for ${tag.name}.
+Try to run ${tag.name}.compile() first.`);
+      }
+      return { isSelf: false, tag: compiledTag };
+    }
+  });
+  let featureFlags = featureFlagsToMlOption(featureFlagsFromGates(gates, withRuntimeTables));
+  return {
+    identifier: methodName,
+    main,
+    featureFlags,
+    proofsToVerify: MlArray.to(proofsToVerify)
+  };
+}
+function computeMaxProofsVerified(proofs) {
+  return proofs.reduce((acc, n) => {
+    assert2(n <= 2, "Too many proofs");
+    return Math.max(acc, n);
+  }, 0);
+}
+function fromFieldVars(type, fields2, auxData = []) {
+  return type.fromFields(MlFieldArray.from(fields2), auxData);
+}
+function fromFieldConsts(type, fields2, aux = []) {
+  return type.fromFields(MlFieldConstArray.from(fields2), aux);
+}
+function toFieldConsts(type, value) {
+  return MlFieldConstArray.to(type.toFields(value));
+}
+function toFieldAndAuxConsts(type, value) {
+  return {
+    publicInputFields: MlFieldConstArray.to(type.toFields(value)),
+    publicInputAux: type.toAuxiliary(value)
+  };
+}
+ZkProgram.Proof = function(program) {
+  var _a2;
+  return _a2 = class ZkProgramProof extends Proof {
+  }, _a2.publicInputType = program.publicInputType, _a2.publicOutputType = program.publicOutputType, _a2.tag = () => program, _a2;
+};
+var dummyProofCache;
+async function dummyBase64Proof() {
+  if (dummyProofCache)
+    return dummyProofCache;
+  let proof = await dummyProof(2, 15);
+  let base64Proof = Pickles.proofToBase64([2, proof]);
+  dummyProofCache = base64Proof;
+  return base64Proof;
+}
+function Prover() {
+  return {
+    async run(witnesses, proverData, callback) {
+      let id2 = snarkContext.enter({ witnesses, proverData, inProver: true });
+      try {
+        return await callback();
+      } finally {
+        snarkContext.leave(id2);
+      }
+    },
+    getData() {
+      return snarkContext.get().proverData;
+    }
+  };
+}
+
+// dist/node/lib/mina/v1/account-update.js
+init_provable();
+
+// dist/node/lib/provable/types/auxiliary.js
+var RandomId = {
+  sizeInFields: () => 0,
+  toFields: () => [],
+  toAuxiliary: (v = Math.random()) => [v],
+  fromFields: (_, [v]) => v,
+  check: () => {
+  },
+  toValue: (x) => x,
+  fromValue: (x) => x,
+  toInput: () => ({}),
+  empty: () => Math.random()
+};
+
+// dist/node/lib/mina/v1/account-update.js
+init_provable_derivers();
+init_wrapped();
+init_assert();
+
+// dist/node/lib/mina/v1/base58-encodings.js
+init_base58();
+init_wrapped();
+var { TokenId: TokenId3, ReceiptChainHash: ReceiptChainHash3, EpochSeed, LedgerHash, StateHash: StateHash3 } = fieldEncodings(Field4);
+
+// dist/node/lib/mina/v1/mina-instance.js
+var defaultAccountCreationFee = 1e9;
+var defaultNetworkConstants = {
+  genesisTimestamp: UInt642.from(0),
+  slotTime: UInt642.from(3 * 60 * 1e3),
+  accountCreationFee: UInt642.from(defaultAccountCreationFee)
+};
+var activeInstance = {
+  getNetworkConstants: () => defaultNetworkConstants,
+  currentSlot: noActiveInstance,
+  hasAccount: noActiveInstance,
+  getAccount: noActiveInstance,
+  getNetworkState: noActiveInstance,
+  sendTransaction: noActiveInstance,
+  transaction: noActiveInstance,
+  fetchEvents: noActiveInstance,
+  fetchActions: noActiveInstance,
+  getActions: noActiveInstance,
+  proofsEnabled: true,
+  getNetworkId: () => "devnet"
+};
+function setActiveInstance(m) {
+  activeInstance = m;
+}
+function noActiveInstance() {
+  throw Error("Must call Mina.setActiveInstance first");
+}
+function currentSlot() {
+  return activeInstance.currentSlot();
+}
+function getAccount(publicKey, tokenId) {
+  return activeInstance.getAccount(publicKey, tokenId);
+}
+function hasAccount(publicKey, tokenId) {
+  return activeInstance.hasAccount(publicKey, tokenId);
+}
+function getNetworkId() {
+  return activeInstance.getNetworkId();
+}
+function getNetworkConstants() {
+  return activeInstance.getNetworkConstants();
+}
+function getNetworkState() {
+  return activeInstance.getNetworkState();
+}
+function getBalance(publicKey, tokenId) {
+  return activeInstance.getAccount(publicKey, tokenId).balance;
+}
+async function fetchEvents(publicKey, tokenId, filterOptions = {}, headers) {
+  return await activeInstance.fetchEvents(publicKey, tokenId, filterOptions, headers);
+}
+async function fetchActions(publicKey, actionStates, tokenId, from, to, headers) {
+  return await activeInstance.fetchActions(publicKey, actionStates, tokenId, from, to, headers);
+}
+function getActions(publicKey, actionStates, tokenId) {
+  return activeInstance.getActions(publicKey, actionStates, tokenId);
+}
+function getProofsEnabled() {
+  return activeInstance.proofsEnabled;
+}
+
+// dist/node/lib/mina/v1/precondition.js
+init_provable();
+init_wrapped();
+init_errors();
+
+// dist/node/lib/mina/v1/constants.js
+var TransactionLimits;
+(function(TransactionLimits2) {
+  TransactionLimits2.MAX_ZKAPP_SEGMENT_PER_TRANSACTION = 16;
+  TransactionLimits2.MAX_ACTION_ELEMENTS = 1024;
+  TransactionLimits2.MAX_EVENT_ELEMENTS = 1024;
+})(TransactionLimits || (TransactionLimits = {}));
+var ZkappConstants;
+(function(ZkappConstants2) {
+  ZkappConstants2.MAX_ZKAPP_STATE_FIELDS = 32;
+  ZkappConstants2.ACCOUNT_ACTION_STATE_BUFFER_SIZE = 5;
+  ZkappConstants2.ACCOUNT_CREATION_FEE = 1000000000n;
+})(ZkappConstants || (ZkappConstants = {}));
+
+// dist/node/lib/mina/v1/precondition.js
+var NetworkPrecondition = {
+  ignoreAll() {
+    let stakingEpochData = {
+      ledger: { hash: ignore(Field4(0)), totalCurrency: ignore(uint64()) },
+      seed: ignore(Field4(0)),
+      startCheckpoint: ignore(Field4(0)),
+      lockCheckpoint: ignore(Field4(0)),
+      epochLength: ignore(uint32())
+    };
+    let nextEpochData = cloneCircuitValue(stakingEpochData);
+    return {
+      snarkedLedgerHash: ignore(Field4(0)),
+      blockchainLength: ignore(uint32()),
+      minWindowDensity: ignore(uint32()),
+      totalCurrency: ignore(uint64()),
+      globalSlotSinceGenesis: ignore(uint32()),
+      stakingEpochData,
+      nextEpochData
+    };
+  }
+};
+function ignore(dummy) {
+  return { isSome: Bool4(false), value: dummy };
+}
+var uint32 = () => ({ lower: UInt322.from(0), upper: UInt322.MAXINT() });
+var uint64 = () => ({ lower: UInt642.from(0), upper: UInt642.MAXINT() });
+var AccountPrecondition = {
+  ignoreAll() {
+    let appState = [];
+    for (let i = 0; i < ZkappConstants.MAX_ZKAPP_STATE_FIELDS; ++i) {
+      appState.push(ignore(Field4(0)));
+    }
+    return {
+      balance: ignore(uint64()),
+      nonce: ignore(uint32()),
+      receiptChainHash: ignore(Field4(0)),
+      delegate: ignore(PublicKey2.empty()),
+      state: appState,
+      actionState: ignore(Actions.emptyActionState()),
+      provedState: ignore(Bool4(false)),
+      isNew: ignore(Bool4(false))
+    };
+  }
+};
+var GlobalSlotPrecondition = {
+  ignoreAll() {
+    return ignore(uint32());
+  }
+};
+var Preconditions = {
+  ignoreAll() {
+    return {
+      account: AccountPrecondition.ignoreAll(),
+      network: NetworkPrecondition.ignoreAll(),
+      validWhile: GlobalSlotPrecondition.ignoreAll()
+    };
+  }
+};
+function preconditions(accountUpdate, isSelf) {
+  initializePreconditions(accountUpdate, isSelf);
+  return {
+    account: Account4(accountUpdate),
+    network: Network(accountUpdate),
+    currentSlot: CurrentSlot(accountUpdate)
+  };
+}
+function Network(accountUpdate) {
+  let layout2 = jsLayout.AccountUpdate.entries.body.entries.preconditions.entries.network;
+  let context2 = getPreconditionContextExn(accountUpdate);
+  let network = preconditionClass(layout2, "network", accountUpdate, context2);
+  let timestamp = {
+    get() {
+      let slot = network.globalSlotSinceGenesis.get();
+      return globalSlotToTimestamp(slot);
+    },
+    getAndRequireEquals() {
+      let slot = network.globalSlotSinceGenesis.getAndRequireEquals();
+      return globalSlotToTimestamp(slot);
+    },
+    requireEquals(value) {
+      let { genesisTimestamp, slotTime } = activeInstance.getNetworkConstants();
+      let slot = timestampToGlobalSlot(value, `Timestamp precondition unsatisfied: the timestamp can only equal numbers of the form ${genesisTimestamp} + k*${slotTime},
+i.e., the genesis timestamp plus an integer number of slots.`);
+      return network.globalSlotSinceGenesis.requireEquals(slot);
+    },
+    requireEqualsIf(condition, value) {
+      let { genesisTimestamp, slotTime } = activeInstance.getNetworkConstants();
+      let slot = timestampToGlobalSlot(value, `Timestamp precondition unsatisfied: the timestamp can only equal numbers of the form ${genesisTimestamp} + k*${slotTime},
+i.e., the genesis timestamp plus an integer number of slots.`);
+      return network.globalSlotSinceGenesis.requireEqualsIf(condition, slot);
+    },
+    requireBetween(lower, upper) {
+      let [slotLower, slotUpper] = timestampToGlobalSlotRange(lower, upper);
+      return network.globalSlotSinceGenesis.requireBetween(slotLower, slotUpper);
+    },
+    requireNothing() {
+      return network.globalSlotSinceGenesis.requireNothing();
+    }
+  };
+  return { ...network, timestamp };
+}
+function Account4(accountUpdate) {
+  let layout2 = jsLayout.AccountUpdate.entries.body.entries.preconditions.entries.account;
+  let context2 = getPreconditionContextExn(accountUpdate);
+  let identity = (x) => x;
+  let update2 = {
+    delegate: {
+      ...preconditionSubclass(accountUpdate, "account.delegate", PublicKey2, context2),
+      ...updateSubclass(accountUpdate, "delegate", identity)
+    },
+    verificationKey: updateSubclass(accountUpdate, "verificationKey", identity),
+    permissions: updateSubclass(accountUpdate, "permissions", identity),
+    zkappUri: updateSubclass(accountUpdate, "zkappUri", ZkappUri.fromJSON),
+    tokenSymbol: updateSubclass(accountUpdate, "tokenSymbol", TokenSymbol.from),
+    timing: updateSubclass(accountUpdate, "timing", identity),
+    votingFor: updateSubclass(accountUpdate, "votingFor", identity)
+  };
+  return {
+    ...preconditionClass(layout2, "account", accountUpdate, context2),
+    ...update2
+  };
+}
+function updateSubclass(accountUpdate, key, transform) {
+  return {
+    set(value) {
+      accountUpdate.body.update[key].isSome = Bool4(true);
+      accountUpdate.body.update[key].value = transform(value);
+    }
+  };
+}
+function CurrentSlot(accountUpdate) {
+  let context2 = getPreconditionContextExn(accountUpdate);
+  return {
+    requireBetween(lower, upper) {
+      context2.constrained.add("validWhile");
+      let property = accountUpdate.body.preconditions.validWhile;
+      ensureConsistentPrecondition(property, Bool4(true), { lower, upper }, "validWhile");
+      property.isSome = Bool4(true);
+      property.value.lower = lower;
+      property.value.upper = upper;
+    }
+  };
+}
+var unimplementedPreconditions = [
+  // unimplemented because its not checked in the protocol
+  "network.stakingEpochData.seed",
+  "network.nextEpochData.seed"
+];
+var baseMap = { UInt64: UInt642, UInt32: UInt322, Field: Field4, Bool: Bool4, PublicKey: PublicKey2, ActionState };
+function getProvableType(layout2) {
+  let typeName = layout2.checkedTypeName ?? layout2.type;
+  let type = baseMap[typeName];
+  assert2(type !== void 0, `Unknown precondition base type ${typeName}`);
+  return type;
+}
+function preconditionClass(layout2, baseKey, accountUpdate, context2) {
+  if (layout2.type === "option") {
+    if (layout2.optionType === "closedInterval") {
+      let baseType = getProvableType(layout2.inner.entries.lower);
+      return preconditionSubClassWithRange(accountUpdate, baseKey, baseType, context2);
+    } else if (layout2.optionType === "flaggedOption") {
+      let baseType = getProvableType(layout2.inner);
+      return preconditionSubclass(accountUpdate, baseKey, baseType, context2);
+    }
+  } else if (layout2.type === "array") {
+    return {};
+  } else if (layout2.type === "object") {
+    return Object.fromEntries(layout2.keys.map((key) => {
+      let value = layout2.entries[key];
+      return [key, preconditionClass(value, `${baseKey}.${key}`, accountUpdate, context2)];
+    }));
+  } else
+    throw Error("bug");
+}
+function preconditionSubClassWithRange(accountUpdate, longKey, fieldType, context2) {
+  return {
+    ...preconditionSubclass(accountUpdate, longKey, fieldType, context2),
+    requireBetween(lower, upper) {
+      context2.constrained.add(longKey);
+      let property = getPath(accountUpdate.body.preconditions, longKey);
+      let newValue = { lower, upper };
+      ensureConsistentPrecondition(property, Bool4(true), newValue, longKey);
+      property.isSome = Bool4(true);
+      property.value = newValue;
+    }
+  };
+}
+function defaultLower(fieldType) {
+  assert2(fieldType === UInt322 || fieldType === UInt642);
+  return fieldType.zero;
+}
+function defaultUpper(fieldType) {
+  assert2(fieldType === UInt322 || fieldType === UInt642);
+  return fieldType.MAXINT();
+}
+function preconditionSubclass(accountUpdate, longKey, fieldType, context2) {
+  if (fieldType === void 0) {
+    throw Error(`this.${longKey}: fieldType undefined`);
+  }
+  let obj = {
+    get() {
+      if (unimplementedPreconditions.includes(longKey)) {
+        let self = context2.isSelf ? "this" : "accountUpdate";
+        throw Error(`${self}.${longKey}.get() is not implemented yet.`);
+      }
+      let { read, vars } = context2;
+      read.add(longKey);
+      return vars[longKey] ??= getVariable(accountUpdate, longKey, fieldType);
+    },
+    getAndRequireEquals() {
+      let value = obj.get();
+      obj.requireEquals(value);
+      return value;
+    },
+    requireEquals(value) {
+      context2.constrained.add(longKey);
+      let property = getPath(accountUpdate.body.preconditions, longKey);
+      if ("isSome" in property) {
+        let isInterval = "lower" in property.value && "upper" in property.value;
+        let newValue = isInterval ? { lower: value, upper: value } : value;
+        ensureConsistentPrecondition(property, Bool4(true), newValue, longKey);
+        property.isSome = Bool4(true);
+        property.value = newValue;
+      } else {
+        setPath(accountUpdate.body.preconditions, longKey, value);
+      }
+    },
+    requireEqualsIf(condition, value) {
+      context2.constrained.add(longKey);
+      let property = getPath(accountUpdate.body.preconditions, longKey);
+      assert2("isSome" in property);
+      if ("lower" in property.value && "upper" in property.value) {
+        let lower = Provable.if(condition, fieldType, value, defaultLower(fieldType));
+        let upper = Provable.if(condition, fieldType, value, defaultUpper(fieldType));
+        ensureConsistentPrecondition(property, condition, { lower, upper }, longKey);
+        property.isSome = condition;
+        property.value.lower = lower;
+        property.value.upper = upper;
+      } else {
+        let newValue = Provable.if(condition, fieldType, value, fieldType.empty());
+        ensureConsistentPrecondition(property, condition, newValue, longKey);
+        property.isSome = condition;
+        property.value = newValue;
+      }
+    },
+    requireNothing() {
+      let property = getPath(accountUpdate.body.preconditions, longKey);
+      if ("isSome" in property) {
+        property.isSome = Bool4(false);
+        if ("lower" in property.value && "upper" in property.value) {
+          property.value.lower = defaultLower(fieldType);
+          property.value.upper = defaultUpper(fieldType);
+        } else {
+          property.value = fieldType.empty();
+        }
+      }
+      context2.constrained.add(longKey);
+    }
+  };
+  return obj;
+}
+function getVariable(accountUpdate, longKey, fieldType) {
+  return Provable.witness(fieldType, () => {
+    let [accountOrNetwork, ...rest] = longKey.split(".");
+    let key = rest.join(".");
+    let value;
+    if (accountOrNetwork === "account") {
+      let account = getAccountPreconditions(accountUpdate.body);
+      value = account[key];
+    } else if (accountOrNetwork === "network") {
+      let networkState = activeInstance.getNetworkState();
+      value = getPath(networkState, key);
+    } else if (accountOrNetwork === "validWhile") {
+      let networkState = activeInstance.getNetworkState();
+      value = networkState.globalSlotSinceGenesis;
+    } else {
+      throw Error("impossible");
+    }
+    return value;
+  });
+}
+function globalSlotToTimestamp(slot) {
+  let { genesisTimestamp, slotTime } = activeInstance.getNetworkConstants();
+  return UInt642.from(slot).mul(slotTime).add(genesisTimestamp);
+}
+function timestampToGlobalSlot(timestamp, message) {
+  let { genesisTimestamp, slotTime } = activeInstance.getNetworkConstants();
+  let { quotient: slot, rest } = timestamp.sub(genesisTimestamp).divMod(slotTime);
+  rest.value.assertEquals(Field4(0), message);
+  return slot.toUInt32();
+}
+function timestampToGlobalSlotRange(tsLower, tsUpper) {
+  let { genesisTimestamp, slotTime } = activeInstance.getNetworkConstants();
+  let tsLowerInt = Int64.from(tsLower).sub(genesisTimestamp).add(slotTime).sub(1);
+  let lowerCapped = Provable.if(tsLowerInt.isPositive(), UInt642, tsLowerInt.magnitude, UInt642.from(0));
+  let slotLower = lowerCapped.div(slotTime).toUInt32Clamped();
+  let slotUpper = tsUpper.sub(genesisTimestamp).div(slotTime).toUInt32Clamped();
+  return [slotLower, slotUpper];
+}
+function getAccountPreconditions(body) {
+  let { publicKey, tokenId } = body;
+  let hasAccount2 = activeInstance.hasAccount(publicKey, tokenId);
+  if (!hasAccount2) {
+    return {
+      balance: UInt642.zero,
+      nonce: UInt322.zero,
+      receiptChainHash: emptyReceiptChainHash(),
+      actionState: Actions.emptyActionState(),
+      delegate: publicKey,
+      provedState: Bool4(false),
+      isNew: Bool4(true)
+    };
+  }
+  let account = activeInstance.getAccount(publicKey, tokenId);
+  return {
+    balance: account.balance,
+    nonce: account.nonce,
+    receiptChainHash: account.receiptChainHash,
+    actionState: account.zkapp?.actionState?.[0] ?? Actions.emptyActionState(),
+    delegate: account.delegate ?? account.publicKey,
+    provedState: account.zkapp?.provedState ?? Bool4(false),
+    isNew: Bool4(false)
+  };
+}
+function initializePreconditions(accountUpdate, isSelf) {
+  preconditionContexts.set(accountUpdate, {
+    read: /* @__PURE__ */ new Set(),
+    constrained: /* @__PURE__ */ new Set(),
+    vars: {},
+    isSelf
+  });
+}
+function cleanPreconditionsCache(accountUpdate) {
+  let context2 = preconditionContexts.get(accountUpdate);
+  if (context2 !== void 0)
+    context2.vars = {};
+}
+function assertPreconditionInvariants(accountUpdate) {
+  let context2 = getPreconditionContextExn(accountUpdate);
+  let self = context2.isSelf ? "this" : "accountUpdate";
+  let dummyPreconditions = Preconditions.ignoreAll();
+  for (let preconditionPath of context2.read) {
+    if (context2.constrained.has(preconditionPath))
+      continue;
+    let precondition = getPath(accountUpdate.body.preconditions, preconditionPath);
+    let dummy = getPath(dummyPreconditions, preconditionPath);
+    if (!circuitValueEquals(precondition, dummy))
+      continue;
+    let hasRequireBetween = isRangeCondition(precondition);
+    let shortPath = preconditionPath.split(".").pop();
+    let errorMessage = `You used \`${self}.${preconditionPath}.get()\` without adding a precondition that links it to the actual ${shortPath}.
+Consider adding this line to your code:
+${self}.${preconditionPath}.requireEquals(${self}.${preconditionPath}.get());${hasRequireBetween ? `
+You can also add more flexible preconditions with \`${self}.${preconditionPath}.requireBetween(...)\`.` : ""}`;
+    throw Error(errorMessage);
+  }
+}
+function getPreconditionContextExn(accountUpdate) {
+  let c = preconditionContexts.get(accountUpdate);
+  if (c === void 0)
+    throw Error("bug: precondition context not found");
+  return c;
+}
+function ensureConsistentPrecondition(property, newIsSome, value, name) {
+  if (!property.isSome.isConstant() || property.isSome.toBoolean()) {
+    let errorMessage = `
+Precondition Error: Precondition Error: Attempting to set a precondition that is already set for '${name}'.
+'${name}' represents the field or value you're trying to set a precondition for.
+Preconditions must be set only once to avoid overwriting previous assertions. 
+For example, do not use 'requireBetween()' or 'requireEquals()' multiple times on the same field.
+
+Recommendation:
+Ensure that preconditions for '${name}' are set in a single place and are not overwritten. If you need to update a precondition,
+consider refactoring your code to consolidate all assertions for '${name}' before setting the precondition.
+
+Example of Correct Usage:
+// Incorrect Usage:
+timestamp.requireBetween(newUInt32(0n), newUInt32(2n));
+timestamp.requireBetween(newUInt32(1n), newUInt32(3n));
+
+// Correct Usage:
+timestamp.requireBetween(new UInt32(1n), new UInt32(2n));
+`;
+    property.isSome.assertEquals(newIsSome, errorMessage);
+    if ("lower" in property.value && "upper" in property.value) {
+      property.value.lower.assertEquals(value.lower, errorMessage);
+      property.value.upper.assertEquals(value.lower, errorMessage);
+    } else {
+      property.value.assertEquals(value, errorMessage);
+    }
+  }
+}
+var preconditionContexts = /* @__PURE__ */ new WeakMap();
+function isRangeCondition(condition) {
+  return "isSome" in condition && "lower" in condition.value;
+}
+function getPath(obj, path) {
+  let pathArray = path.split(".").reverse();
+  while (pathArray.length > 0) {
+    let key = pathArray.pop();
+    obj = obj[key];
+  }
+  return obj;
+}
+function setPath(obj, path, value) {
+  let pathArray = path.split(".");
+  let key = pathArray.pop();
+  getPath(obj, pathArray.join("."))[key] = value;
+}
 
 // dist/node/lib/mina/v1/smart-contract-base.js
 var SmartContractBase = class {
@@ -27824,6 +27840,12 @@ function isSmartContract(object) {
 
 // dist/node/lib/mina/v1/smart-contract-context.js
 init_global_context();
+
+// dist/node/lib/mina/v1/transaction-context.js
+init_global_context();
+var currentTransaction = Context.create();
+
+// dist/node/lib/mina/v1/smart-contract-context.js
 init_assert();
 var smartContractContext = Context.create({
   default: null
@@ -27841,23 +27863,6 @@ function contract(expectedConstructor) {
   }
   return ctx.this;
 }
-
-// dist/node/lib/mina/v1/account-update.js
-init_assert();
-
-// dist/node/lib/provable/types/auxiliary.js
-var RandomId = {
-  sizeInFields: () => 0,
-  toFields: () => [],
-  toAuxiliary: (v = Math.random()) => [v],
-  fromFields: (_, [v]) => v,
-  check: () => {
-  },
-  toValue: (x) => x,
-  fromValue: (x) => x,
-  toInput: () => ({}),
-  empty: () => Math.random()
-};
 
 // dist/node/lib/mina/v1/account-update.js
 var _a;
@@ -28220,6 +28225,12 @@ var AccountUpdate4 = class _AccountUpdate {
       accountUpdateLayout()?.setChildren(this, child);
       return;
     }
+    if (isOptionalAccountUpdate(child)) {
+      child.value.body.callDepth = this.body.callDepth + 1;
+      accountUpdateLayout()?.disattach(child.value);
+      accountUpdateLayout()?.pushOptionalChild(this, child);
+      return;
+    }
     if (child instanceof _AccountUpdate) {
       child.body.callDepth = this.body.callDepth + 1;
     }
@@ -28418,9 +28429,6 @@ var AccountUpdate4 = class _AccountUpdate {
     dummy.label = "Dummy";
     return dummy;
   }
-  isDummy() {
-    return this.body.publicKey.isEmpty();
-  }
   static defaultFeePayer(address, nonce) {
     let body = FeePayerBody.keepAll(address, nonce);
     return {
@@ -28442,15 +28450,7 @@ var AccountUpdate4 = class _AccountUpdate {
    */
   static create(publicKey, tokenId) {
     let accountUpdate = _AccountUpdate.default(publicKey, tokenId);
-    let insideContract = smartContractContext.get();
-    if (insideContract) {
-      let self = insideContract.this.self;
-      self.approve(accountUpdate);
-      accountUpdate.label = `${self.label || "Unlabeled"} > AccountUpdate.create()`;
-    } else {
-      currentTransaction()?.layout.pushTopLevel(accountUpdate);
-      accountUpdate.label = `Mina.transaction() > AccountUpdate.create()`;
-    }
+    attachToCurrentContext(accountUpdate, "AccountUpdate.create()");
     return accountUpdate;
   }
   /**
@@ -28460,12 +28460,13 @@ var AccountUpdate4 = class _AccountUpdate {
    * a condition that determines whether the account update should be added to the transaction.
    */
   static createIf(condition, publicKey, tokenId) {
-    return _AccountUpdate.create(
-      // if the condition is false, we use an empty public key, which causes the account update to be ignored
-      // as a dummy when building the transaction
-      Provable.if(condition, publicKey, PublicKey2.empty()),
-      tokenId
-    );
+    let accountUpdate = _AccountUpdate.default(publicKey, tokenId);
+    let optionalAccountUpdate = new OptionalAccountUpdate({
+      isSome: condition,
+      value: accountUpdate
+    });
+    attachToCurrentContext(optionalAccountUpdate, "AccountUpdate.createIf()");
+    return optionalAccountUpdate;
   }
   /**
    * Attach account update to the current transaction
@@ -28550,25 +28551,11 @@ var AccountUpdate4 = class _AccountUpdate {
     let accountUpdate = transaction_exports.AccountUpdate.fromValue(value);
     return new _AccountUpdate(accountUpdate.body, accountUpdate.authorization);
   }
-  /**
-   * This function acts as the `check()` method on an `AccountUpdate` that is sent to the Mina node as part of a transaction.
-   *
-   * Background: the Mina node performs most necessary validity checks on account updates, both in- and outside of circuits.
-   * To save constraints, we don't repeat these checks in zkApps in places where we can be sure the checked account updates
-   * will be part of a transaction.
-   *
-   * However, there are a few checks skipped by the Mina node, that could cause vulnerabilities in zkApps if
-   * not checked in the zkApp proof itself. Adding these extra checks is the purpose of this function.
-   */
-  static clientSideOnlyChecks(au) {
-    Int64.check(au.body.balanceChange);
-  }
-  static witness(resultType, compute, { skipCheck = false } = {}) {
-    let accountUpdate = skipCheck ? {
-      ...provable(_AccountUpdate),
-      check: _AccountUpdate.clientSideOnlyChecks
-    } : _AccountUpdate;
-    let combinedType = provable({ accountUpdate, result: resultType });
+  static witness(resultType, compute) {
+    let combinedType = provable({
+      accountUpdate: _AccountUpdate,
+      result: resultType
+    });
     return Provable.witnessAsync(combinedType, compute);
   }
   /**
@@ -28667,6 +28654,26 @@ AccountUpdate4.toInput = transaction_exports.AccountUpdate.toInput;
 AccountUpdate4.check = transaction_exports.AccountUpdate.check;
 AccountUpdate4.toValue = transaction_exports.AccountUpdate.toValue;
 AccountUpdate4.MayUseToken = MayUseToken3;
+var OptionalAccountUpdate = Option(AccountUpdate4);
+function isOptionalAccountUpdate(update2) {
+  return update2 instanceof OptionalAccountUpdate;
+}
+function attachToCurrentContext(update2, source) {
+  let accountUpdate = isOptionalAccountUpdate(update2) ? update2.value : update2;
+  let insideContract = smartContractContext.get();
+  if (insideContract) {
+    let self = insideContract.this.self;
+    self.approve(update2);
+    accountUpdate.label = `${self.label || "Unlabeled"} > ${source}`;
+  } else {
+    let layout2 = currentTransaction()?.layout;
+    if (isOptionalAccountUpdate(update2))
+      layout2?.pushOptionalTopLevel(update2);
+    else
+      layout2?.pushTopLevel(update2);
+    accountUpdate.label = `Mina.transaction() > ${source}`;
+  }
+}
 function hashAccountUpdate(update2) {
   return genericHash(AccountUpdate4, zkAppBodyPrefix(activeInstance.getNetworkId()), update2);
 }
@@ -28679,6 +28686,9 @@ var AccountUpdateTreeBase = StructNoJson({
 });
 var AccountUpdateForest = class extends (_b = MerkleList.create(AccountUpdateTreeBase, merkleListHash2)) {
   push(update2) {
+    if (isOptionalAccountUpdate(update2)) {
+      return super.pushIf(update2.isSome, AccountUpdateTree.from(update2.value));
+    }
     return super.push(update2 instanceof AccountUpdate4 ? AccountUpdateTree.from(update2) : update2);
   }
   pushIf(condition, update2) {
@@ -28755,9 +28765,14 @@ var AccountUpdateTree = class _AccountUpdateTree extends StructNoJson({
    * See {@link AccountUpdate.approve}.
    */
   approve(update2, hash3) {
-    accountUpdateLayout()?.disattach(update2);
+    let accountUpdate = isOptionalAccountUpdate(update2) ? update2.value : update2;
+    accountUpdateLayout()?.disattach(accountUpdate);
+    if (isOptionalAccountUpdate(update2)) {
+      this.children.pushIf(update2.isSome, _AccountUpdateTree.from(update2.value, hash3));
+      return;
+    }
     if (update2 instanceof AccountUpdate4) {
-      this.children.pushIf(update2.isDummy().not(), _AccountUpdateTree.from(update2, hash3));
+      this.children.push(_AccountUpdateTree.from(update2, hash3));
     } else {
       this.children.push(update2);
     }
@@ -28904,7 +28919,7 @@ var UnfinishedTree = {
       return {
         mutable: update2,
         id: update2.id,
-        isDummy: update2.isDummy(),
+        isDummy: Bool4(false),
         children: UnfinishedForest.empty()
       };
     }
@@ -28978,8 +28993,17 @@ var AccountUpdateLayout = class {
     let childNode = this.getOrCreate(child);
     parentNode.children.push(childNode);
   }
+  pushOptionalChild(parent, child) {
+    let parentNode = this.getOrCreate(parent);
+    let childNode = this.getOrCreate(child.value);
+    childNode.isDummy = child.isSome.not();
+    parentNode.children.push(childNode);
+  }
   pushTopLevel(child) {
     this.pushChild(this.root, child);
+  }
+  pushOptionalTopLevel(child) {
+    this.pushOptionalChild(this.root, child);
   }
   setChildren(parent, children) {
     let parentNode = this.getOrCreate(parent);
@@ -35220,13 +35244,13 @@ function wrapMethod(method2, ZkappClass, methodIntf) {
       let { accountUpdate, result: { result, children } } = await AccountUpdate4.witness(provable({
         result: methodIntf.returnType ?? provable(null),
         children: AccountUpdateForest
-      }), runCalledContract, { skipCheck: true });
+      }), runCalledContract);
       innerContext.selfUpdate = accountUpdate;
       accountUpdate.body.callDepth = parentAccountUpdate.body.callDepth + 1;
       insideContract.selfLayout.pushTopLevel(accountUpdate);
       insideContract.selfLayout.setChildren(accountUpdate, children);
       accountUpdate.body.publicKey.assertEquals(this.address);
-      accountUpdate.body.tokenId.assertEquals(this.self.body.tokenId);
+      accountUpdate.body.tokenId.assertEquals(this.tokenId);
       assert3(accountUpdate.body.authorizationKind.isProved, "callee is proved");
       let callDataFields = computeCallData(methodIntf, actualArgs, result, blindingValue);
       let callData = Poseidon2.hash(callDataFields);
@@ -39975,6 +39999,7 @@ Error.stackTraceLimit = 1e5;
   Mina,
   Nullifier,
   Option,
+  OptionalAccountUpdate,
   Packed,
   Permissions,
   Pickles,
