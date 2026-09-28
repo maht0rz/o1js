@@ -6509,12 +6509,12 @@ var snarkContext, minusRange;
 var init_provable_context = __esm({
   "dist/node/lib/provable/core/provable-context.js"() {
     "use strict";
+    init_global_context();
     init_bindings2();
     init_bigint_helpers();
+    init_errors();
     init_finite_field();
     init_base();
-    init_errors();
-    init_global_context();
     snarkContext = Context.create({ default: {} });
     minusRange = Fp.modulus - (1n << 64n);
   }
@@ -35251,6 +35251,7 @@ function wrapMethod(method2, ZkappClass, methodIntf) {
         children: AccountUpdateForest
       }), runCalledContract);
       innerContext.selfUpdate = accountUpdate;
+      void this.self;
       accountUpdate.body.callDepth = parentAccountUpdate.body.callDepth + 1;
       insideContract.selfLayout.pushTopLevel(accountUpdate);
       insideContract.selfLayout.setChildren(accountUpdate, children);

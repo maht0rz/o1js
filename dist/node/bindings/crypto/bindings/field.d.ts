@@ -12,8 +12,6 @@ declare const FpBindings: {
     caml_pasta_fp_size: () => Bigint256;
     caml_pasta_fp_print: (x: Field) => void;
     caml_pasta_fp_mul: ([, x]: Field, [, y]: Field) => Field;
-    caml_pasta_fp_rng: (i: number) => Field;
-    caml_pasta_fp_equal: ([, x]: Field, [, y]: Field) => MlBool;
     caml_pasta_fp_inv: ([, x]: Field) => MlOption<Field>;
     caml_pasta_fp_sqrt: ([, x]: Field) => MlOption<Field>;
     caml_pasta_fp_compare: (x: Field, y: Field) => number;
@@ -29,7 +27,9 @@ declare const FpBindings: {
     caml_pasta_fp_mut_sub: (x: Field, [, y]: Field) => void;
     caml_pasta_fp_mut_mul: (x: Field, [, y]: Field) => void;
     caml_pasta_fp_mut_square: (x: Field) => void;
+    caml_pasta_fp_equal: ([, x]: Field, [, y]: Field) => MlBool;
     caml_pasta_fp_random: () => Field;
+    caml_pasta_fp_rng: (i: number) => Field;
     caml_pasta_fp_to_bigint: ([, x]: Field) => Bigint256;
     caml_pasta_fp_of_bigint: ([, x]: Bigint256) => Field;
     caml_pasta_fp_two_adic_root_of_unity: () => Field;
@@ -45,8 +45,6 @@ declare const FqBindings: {
     caml_pasta_fq_size: () => Bigint256;
     caml_pasta_fq_print: (x: Field) => void;
     caml_pasta_fq_mul: ([, x]: Field, [, y]: Field) => Field;
-    caml_pasta_fq_rng: (i: number) => Field;
-    caml_pasta_fq_equal: ([, x]: Field, [, y]: Field) => MlBool;
     caml_pasta_fq_inv: ([, x]: Field) => MlOption<Field>;
     caml_pasta_fq_sqrt: ([, x]: Field) => MlOption<Field>;
     caml_pasta_fq_compare: (x: Field, y: Field) => number;
@@ -62,7 +60,9 @@ declare const FqBindings: {
     caml_pasta_fq_mut_sub: (x: Field, [, y]: Field) => void;
     caml_pasta_fq_mut_mul: (x: Field, [, y]: Field) => void;
     caml_pasta_fq_mut_square: (x: Field) => void;
+    caml_pasta_fq_equal: ([, x]: Field, [, y]: Field) => MlBool;
     caml_pasta_fq_random: () => Field;
+    caml_pasta_fq_rng: (i: number) => Field;
     caml_pasta_fq_to_bigint: ([, x]: Field) => Bigint256;
     caml_pasta_fq_of_bigint: ([, x]: Bigint256) => Field;
     caml_pasta_fq_two_adic_root_of_unity: () => Field;

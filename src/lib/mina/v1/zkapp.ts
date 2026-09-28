@@ -417,6 +417,9 @@ function wrapMethod(
 
       // overwrite this.self with the witnessed update, so it's this one we access later in the caller method
       innerContext.selfUpdate = accountUpdate;
+      // Keep the instance cache in sync even when the callee witness is not run
+      // during compilation. Later caller access must use this checked update.
+      void this.self;
 
       // connect accountUpdate to our own. outside Provable.witness so compile knows the right structure when hashing children
       accountUpdate.body.callDepth = parentAccountUpdate.body.callDepth + 1;

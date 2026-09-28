@@ -1,6 +1,6 @@
-import { Gate, GateType, JsonGate } from '../../../bindings.js';
 import { Context } from '../../util/global-context.js';
-export { ConstraintSystemSummary, MlConstraintSystem, SnarkContext, asProver, constraintSystem, gatesFromJson, generateWitness, inAnalyze, inCheckedComputation, inCompile, inCompileMode, inProver, printGates, snarkContext, summarizeGates, synchronousRunners, };
+import { Gate, GateType, JsonGate } from '../../../bindings.js';
+export { snarkContext, SnarkContext, asProver, synchronousRunners, generateWitness, constraintSystem, inProver, inAnalyze, inCheckedComputation, inCompile, inCompileMode, gatesFromJson, printGates, summarizeGates, MlConstraintSystem, ConstraintSystemSummary, };
 type ConstraintSystemSummary = {
     /**
      * Number of rows in the constraint system

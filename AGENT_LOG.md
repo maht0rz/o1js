@@ -275,4 +275,29 @@ tags: [uint128, integer-arithmetic, range-check, real-proofs]
 
 **Relevant files:** src/lib/provable/int.ts, tests/uint128-security.test.mjs, tests/uint128-security-proof.test.mjs, UINT128-SECURITY.md
 
+---
+date: 2026-09-28
+agent: Codex
+session: treasury-o1js-310-integration
+category: circuit-model
+severity: high
+tags: [nested-call, account-update, instance-cache, real-proofs]
+---
+
+### Synchronize the nested callee instance cache with its checked update
+
+**Context:** The Treasury retained explicit approval after two calls to the same nested contract.
+
+**What happened:** Voting and tallying failed with FieldVector bounds errors in both native and WASM proving. Removing one approval fixed voting but left tallying broken.
+
+**Root cause:** The callee witness runs during proving but not compilation. Its cached SmartContract.self update therefore differed between the two modes after the nested call returned.
+
+**Resolution:** Access this.self immediately after installing the checked witnessed update in innerContext.selfUpdate. The getter synchronizes the instance cache in both modes. Retain the Treasury's explicit approval calls.
+
+**Validation:** The isolated nested-call regression proves and includes a transaction with two child proof authorizations and a signed voter. All nine Treasury lifecycle proof tests and three Proposal-specific reducer proof tests pass with the native backend. Browser security checks and the existing UInt128 real-proof tests also pass.
+
+**Build note:** Version 3.1.0 of @o1js/native was not available in the registry. This release explicitly retains the existing 3.0.0 Mesa/native backend.
+
+**Relevant files:** `src/lib/mina/v1/zkapp.ts`, `tests/nested-update-security-proof.test.mjs`, `TREASURY-3.1.0.md`
+
 <!-- END LOG -->

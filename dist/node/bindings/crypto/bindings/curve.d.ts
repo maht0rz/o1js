@@ -15,9 +15,9 @@ declare const VestaBindings: {
     };
     caml_vesta_scale: (g: GroupProjective, [, s]: Field) => GroupProjective;
     caml_vesta_one: () => GroupProjective;
+    caml_vesta_random: () => GroupProjective;
     caml_vesta_rng: (i: number) => GroupProjective;
     caml_vesta_double: (g: GroupProjective) => GroupProjective;
-    caml_vesta_random: () => GroupProjective;
     caml_vesta_endo_base: () => Field;
     caml_vesta_endo_scalar: () => Field;
     caml_vesta_to_affine: (g: GroupProjective) => OrInfinity;
@@ -35,9 +35,9 @@ declare const PallasBindings: {
     };
     caml_pallas_scale: (g: GroupProjective, [, s]: Field) => GroupProjective;
     caml_pallas_one: () => GroupProjective;
+    caml_pallas_random: () => GroupProjective;
     caml_pallas_rng: (i: number) => GroupProjective;
     caml_pallas_double: (g: GroupProjective) => GroupProjective;
-    caml_pallas_random: () => GroupProjective;
     caml_pallas_endo_base: () => Field;
     caml_pallas_endo_scalar: () => Field;
     caml_pallas_to_affine: (g: GroupProjective) => OrInfinity;

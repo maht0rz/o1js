@@ -1,11 +1,11 @@
+import { Context } from '../../util/global-context.js';
 import { Snarky, initializeBindings } from '../../../bindings.js';
 import { parseHexString32 } from '../../../bindings/crypto/bigint-helpers.js';
+import { prettifyStacktrace } from '../../util/errors.js';
 import { Fp } from '../../../bindings/crypto/finite-field.js';
 import { MlBool } from '../../ml/base.js';
-import { prettifyStacktrace } from '../../util/errors.js';
-import { Context } from '../../util/global-context.js';
 // internal API
-export { MlConstraintSystem, asProver, constraintSystem, gatesFromJson, generateWitness, inAnalyze, inCheckedComputation, inCompile, inCompileMode, inProver, printGates, snarkContext, summarizeGates, synchronousRunners, };
+export { snarkContext, asProver, synchronousRunners, generateWitness, constraintSystem, inProver, inAnalyze, inCheckedComputation, inCompile, inCompileMode, gatesFromJson, printGates, summarizeGates, MlConstraintSystem, };
 let snarkContext = Context.create({ default: {} });
 class MlConstraintSystem {
 }
