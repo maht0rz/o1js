@@ -1,31 +1,246 @@
-import { Field, Bool } from './wrapped.js';
-import { AnyConstructor, Struct } from './types/struct.js';
-import { Types } from '../../bindings/mina-transaction/v1/types.js';
 import * as TypesBigint from '../../bindings/mina-transaction/v1/transaction-leaves-bigint.js';
-import { HashInput } from './crypto/poseidon.js';
-import { Provable } from './provable.js';
-import * as RangeCheck from './gadgets/range-check.js';
-import * as Bitwise from './gadgets/bitwise.js';
-import { addMod32, addMod64, divMod64 } from './gadgets/arithmetic.js';
-import { checkBitLength, withMessage } from './field.js';
+import { Types } from '../../bindings/mina-transaction/v1/types.js';
+import { BinableFp } from '../../mina-signer/src/field-bigint.js';
+import { assert } from '../util/assert.js';
+import { TupleN } from '../util/types.js';
 import { FieldVar } from './core/fieldvar.js';
-import { CircuitValue, prop } from './types/circuit-value.js';
+import { HashInput } from './crypto/poseidon.js';
+import { checkBitLength, withMessage } from './field.js';
+import { addMod32, addMod64, divMod64 } from './gadgets/arithmetic.js';
+import { bytesToWord, wordToBytes } from './gadgets/bit-slices.js';
+import * as Bitwise from './gadgets/bitwise.js';
 import {
   assertLessThanGeneric,
   assertLessThanOrEqualGeneric,
   lessThanGeneric,
   lessThanOrEqualGeneric,
 } from './gadgets/comparison.js';
-import { assert } from '../util/assert.js';
-import { TupleN } from '../util/types.js';
-import { bytesToWord, wordToBytes } from './gadgets/bit-slices.js';
-import { BinableFp } from '../../mina-signer/src/field-bigint.js';
+import * as RangeCheck from './gadgets/range-check.js';
+import { Provable } from './provable.js';
+import { CircuitValue, prop } from './types/circuit-value.js';
+import { AnyConstructor, Struct } from './types/struct.js';
+import { Bool, Field } from './wrapped.js';
 
 // external API
-export { UInt8, UInt32, UInt64, UInt128, Int64, Sign };
+export { Int64, Sign, UInt128, UInt32, UInt64, UInt8, UInt96 };
+
+/**
+ * A 96 bit unsigned integer with values ranging from 0 to 79,228,162,514,264,337,593,543,950,335.
+ *
+ * Products of two UInt96 values are smaller than the native field modulus.
+ * This permits direct integer multiplication without field wraparound.
+ */
+class UInt96 extends CircuitValue {
+  @prop value: Field;
+  static NUM_BITS = 96;
+
+  /** Create a {@link UInt96}. */
+  constructor(x: UInt96 | UInt64 | UInt32 | FieldVar | number | string | bigint) {
+    if (x instanceof UInt96 || x instanceof UInt64 || x instanceof UInt32) x = x.value.value;
+    let value = Field(x);
+    super(value);
+    UInt96.checkConstant(value);
+  }
+
+  static Unsafe = {
+    /** Create a UInt96 from a Field without constraining its range. */
+    fromField(x: Field) {
+      return new UInt96(x.value);
+    },
+  };
+
+  static get zero() {
+    return new UInt96(0);
+  }
+
+  static get one() {
+    return new UInt96(1);
+  }
+
+  toString() {
+    return this.value.toString();
+  }
+
+  toBigInt() {
+    return this.value.toBigInt();
+  }
+
+  toUInt64() {
+    let uint64 = new UInt64(this.value.value);
+    UInt64.check(uint64);
+    return uint64;
+  }
+
+  static check(x: UInt96) {
+    RangeCheck.rangeCheckN(UInt96.NUM_BITS, x.value);
+  }
+
+  static toInput(x: UInt96): HashInput {
+    return { packed: [[x.value, UInt96.NUM_BITS]] };
+  }
+
+  static toJSON(x: UInt96) {
+    return x.value.toString();
+  }
+
+  static fromJSON<T extends AnyConstructor>(x: string): InstanceType<T> {
+    return this.from(x) as any;
+  }
+
+  private static checkConstant(x: Field) {
+    if (!x.isConstant()) return x;
+    let xBig = x.toBigInt();
+    if (xBig < 0n || xBig >= 1n << BigInt(this.NUM_BITS)) {
+      throw Error(`UInt96: Expected number between 0 and 2^96 - 1, got ${xBig}`);
+    }
+    return x;
+  }
+
+  static from(x: UInt96 | UInt64 | UInt32 | number | string | bigint) {
+    if (x instanceof UInt96) return x;
+    return new this(x);
+  }
+
+  static MAXINT() {
+    return new UInt96((1n << 96n) - 1n);
+  }
+
+  divMod(y: UInt96 | number | string) {
+    let x = this.value;
+    let y_ = UInt96.from(y).value;
+
+    if (x.isConstant() && y_.isConstant()) {
+      let xn = x.toBigInt();
+      let yn = y_.toBigInt();
+      let q = xn / yn;
+      let r = xn - q * yn;
+      return { quotient: new UInt96(q), rest: new UInt96(r) };
+    }
+
+    y_ = y_.seal();
+    let q = Provable.witness(Field, () => Field(x.toBigInt() / y_.toBigInt()));
+    RangeCheck.rangeCheckN(UInt96.NUM_BITS, q);
+
+    // q and y are 96-bit values, so q*y is smaller than the field modulus.
+    let r = x.sub(q.mul(y_)).seal();
+    RangeCheck.rangeCheckN(UInt96.NUM_BITS, r);
+
+    let q_ = new UInt96(q.value);
+    let r_ = new UInt96(r.value);
+    r_.assertLessThan(new UInt96(y_.value));
+    return { quotient: q_, rest: r_ };
+  }
+
+  div(y: UInt96 | number) {
+    return this.divMod(y).quotient;
+  }
+
+  mod(y: UInt96 | number) {
+    return this.divMod(y).rest;
+  }
+
+  mul(y: UInt96 | number) {
+    // A 96-by-96-bit product is smaller than the native field modulus.
+    let z = this.value.mul(UInt96.from(y).value);
+    RangeCheck.rangeCheckN(UInt96.NUM_BITS, z);
+    return new UInt96(z.value);
+  }
+
+  add(y: UInt96 | number) {
+    let z = this.value.add(UInt96.from(y).value);
+    RangeCheck.rangeCheckN(UInt96.NUM_BITS, z);
+    return new UInt96(z.value);
+  }
+
+  sub(y: UInt96 | number) {
+    let z = this.value.sub(UInt96.from(y).value);
+    RangeCheck.rangeCheckN(UInt96.NUM_BITS, z);
+    return new UInt96(z.value);
+  }
+
+  lessThanOrEqual(y: UInt96) {
+    if (this.value.isConstant() && y.value.isConstant()) {
+      return Bool(this.value.toBigInt() <= y.value.toBigInt());
+    }
+    return lessThanOrEqualGeneric(this.value, y.value, 1n << 96n, (v) =>
+      RangeCheck.rangeCheckN(UInt96.NUM_BITS, v)
+    );
+  }
+
+  assertLessThanOrEqual(y: UInt96, message?: string) {
+    if (this.value.isConstant() && y.value.isConstant()) {
+      let [x0, y0] = [this.value.toBigInt(), y.value.toBigInt()];
+      return assert(x0 <= y0, message ?? `UInt96.assertLessThanOrEqual: expected ${x0} <= ${y0}`);
+    }
+    assertLessThanOrEqualGeneric(this.value, y.value, (v) =>
+      RangeCheck.rangeCheckN(UInt96.NUM_BITS, v, message)
+    );
+  }
+
+  lessThan(y: UInt96) {
+    if (this.value.isConstant() && y.value.isConstant()) {
+      return Bool(this.value.toBigInt() < y.value.toBigInt());
+    }
+    return lessThanGeneric(this.value, y.value, 1n << 96n, (v) =>
+      RangeCheck.rangeCheckN(UInt96.NUM_BITS, v)
+    );
+  }
+
+  assertLessThan(y: UInt96, message?: string) {
+    if (this.value.isConstant() && y.value.isConstant()) {
+      let [x0, y0] = [this.value.toBigInt(), y.value.toBigInt()];
+      return assert(x0 < y0, message ?? `UInt96.assertLessThan: expected ${x0} < ${y0}`);
+    }
+    assertLessThanGeneric(this.value, y.value, (v) =>
+      RangeCheck.rangeCheckN(UInt96.NUM_BITS, v, message)
+    );
+  }
+
+  greaterThan(y: UInt96) {
+    return y.lessThan(this);
+  }
+
+  assertGreaterThan(y: UInt96, message?: string) {
+    y.assertLessThan(this, message);
+  }
+
+  greaterThanOrEqual(y: UInt96) {
+    return y.lessThanOrEqual(this);
+  }
+
+  assertGreaterThanOrEqual(y: UInt96, message?: string) {
+    y.assertLessThanOrEqual(this, message);
+  }
+
+  static toValue(x: UInt96) {
+    return x.value.toBigInt();
+  }
+
+  static fromValue<T extends AnyConstructor>(x: number | bigint | UInt96): InstanceType<T> {
+    return UInt96.from(x) as any;
+  }
+
+  toBits(length: number = UInt96.NUM_BITS) {
+    checkBitLength('UInt96.toBits()', length, UInt96.NUM_BITS);
+    if (this.isConstant()) {
+      let bits = BinableFp.toBits(this.toBigInt());
+      if (bits.slice(length).some((bit) => bit))
+        throw Error(`UInt96.toBits(): ${this} does not fit in ${length} bits`);
+      return bits.slice(0, length).map((b) => new Bool(b));
+    }
+    return this.value.toBits(length);
+  }
+
+  static fromBits(bits: (Bool | boolean)[]) {
+    checkBitLength('UInt96.fromBits()', bits.length, UInt96.NUM_BITS);
+    return UInt96.Unsafe.fromField(Field.fromBits(bits));
+  }
+}
 
 /**
  * A 128 bit unsigned integer with values ranging from 0 to 340,282,366,920,938,463,463,374,607,431,768,211,455.
+ *
+ * @deprecated Use UInt96 when 96 bits are sufficient. UInt128 remains available for compatibility.
  */
 class UInt128 extends CircuitValue {
   @prop value: Field;

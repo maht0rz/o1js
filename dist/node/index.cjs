@@ -11577,6 +11577,7 @@ __export(index_exports, {
   UInt32: () => UInt322,
   UInt64: () => UInt642,
   UInt8: () => UInt8,
+  UInt96: () => UInt96,
   Unconstrained: () => Unconstrained,
   Undefined: () => Undefined,
   VerificationKey: () => VerificationKey2,
@@ -12544,10 +12545,133 @@ init_finite_field();
 
 // dist/node/lib/provable/int.js
 var import_tslib2 = require("tslib");
-init_wrapped();
-init_provable();
-init_range_check();
+init_field_bigint();
+init_assert();
+init_types();
 init_field2();
+
+// dist/node/lib/provable/gadgets/bit-slices.js
+init_bigint_helpers();
+init_field2();
+init_exists();
+init_provable();
+
+// dist/node/lib/util/arrays.js
+init_errors();
+function chunk(array, size) {
+  assert2(array.length % size === 0, `chunk(): invalid input length, it must be a multiple of ${size}`);
+  return Array.from({ length: array.length / size }, (_, i) => array.slice(size * i, size * (i + 1)));
+}
+function chunkString(str, size) {
+  return chunk([...str], size).map((c) => c.join(""));
+}
+function zip(a2, b2) {
+  assert2(a2.length <= b2.length, "zip(): second array must be at least as long as the first array");
+  return a2.map((a3, i) => [a3, b2[i]]);
+}
+function pad(array, size, value) {
+  assert2(array.length <= size, `target size ${size} should be greater or equal than the length of the array ${array.length}`);
+  return array.concat(Array.from({ length: size - array.length }, () => value));
+}
+function mapObject(t, fn) {
+  let s = {};
+  let i = 0;
+  for (let key in t) {
+    s[key] = fn(t[key], key, i);
+    i++;
+  }
+  return s;
+}
+function mapToObject(keys, fn) {
+  let s = {};
+  keys.forEach((key, i) => {
+    s[key] = fn(key, i);
+  });
+  return s;
+}
+
+// dist/node/lib/provable/gadgets/bit-slices.js
+init_common();
+init_range_check();
+function bytesToWord(wordBytes) {
+  return wordBytes.reduce((acc, byte, idx) => {
+    const shift = 1n << BigInt(8 * idx);
+    return acc.add(byte.value.mul(shift));
+  }, Field3.from(0));
+}
+function wordToBytes(word, bytesPerWord = 8) {
+  let bytes = Provable.witness(Provable.Array(UInt8, bytesPerWord), () => {
+    let w = word.toBigInt();
+    return Array.from({ length: bytesPerWord }, (_, k) => UInt8.from(w >> BigInt(8 * k) & 0xffn));
+  });
+  bytesToWord(bytes).assertEquals(word);
+  return bytes;
+}
+function wordsToBytes(words, bytesPerWord = 8) {
+  return words.flatMap((w) => wordToBytes(w, bytesPerWord));
+}
+function bytesToWords(bytes, bytesPerWord = 8) {
+  return chunk(bytes, bytesPerWord).map(bytesToWord);
+}
+function sliceField3([x0, x1, x2], { maxBits, chunkSize }) {
+  let l_ = Number(l);
+  assert3(maxBits <= 3 * l_, `expected max bits <= 3*${l_}, got ${maxBits}`);
+  let result0 = sliceField(x0, Math.min(l_, maxBits), chunkSize);
+  if (maxBits <= l_)
+    return result0.chunks;
+  maxBits -= l_;
+  let result1 = sliceField(x1, Math.min(l_, maxBits), chunkSize, result0);
+  if (maxBits <= l_)
+    return result0.chunks.concat(result1.chunks);
+  maxBits -= l_;
+  let result2 = sliceField(x2, maxBits, chunkSize, result1);
+  return result0.chunks.concat(result1.chunks, result2.chunks);
+}
+function sliceField(x, maxBits, chunkSize, leftover) {
+  let bits = exists(maxBits, () => {
+    let bits2 = bigIntToBits(x.toBigInt());
+    if (bits2.length > maxBits)
+      bits2 = bits2.slice(0, maxBits);
+    if (bits2.length < maxBits)
+      bits2 = bits2.concat(Array(maxBits - bits2.length).fill(false));
+    return bits2.map(BigInt);
+  });
+  let chunks = [];
+  let sum2 = Field3.from(0n);
+  if (leftover !== void 0) {
+    let { chunks: previous, leftoverSize: size } = leftover;
+    let remainingChunk = Field3.from(0n);
+    for (let i2 = 0; i2 < size; i2++) {
+      let bit2 = bits[i2];
+      bit2.assertBool();
+      remainingChunk = remainingChunk.add(bit2.mul(1n << BigInt(i2)));
+    }
+    sum2 = remainingChunk = remainingChunk.seal();
+    let chunk2 = previous[previous.length - 1];
+    previous[previous.length - 1] = chunk2.add(remainingChunk.mul(1n << BigInt(chunkSize - size)));
+  }
+  let i = leftover?.leftoverSize ?? 0;
+  for (; i < maxBits; i += chunkSize) {
+    let chunk2 = Field3.from(0n);
+    let size = Math.min(maxBits - i, chunkSize);
+    for (let j = 0; j < size; j++) {
+      let bit2 = bits[i + j];
+      bit2.assertBool();
+      chunk2 = chunk2.add(bit2.mul(1n << BigInt(j)));
+    }
+    chunk2 = chunk2.seal();
+    sum2 = sum2.add(chunk2.mul(1n << BigInt(i)));
+    chunks.push(chunk2);
+  }
+  sum2.assertEquals(x);
+  let leftoverSize = i - maxBits;
+  return { chunks, leftoverSize };
+}
+
+// dist/node/lib/provable/int.js
+init_comparison();
+init_range_check();
+init_provable();
 
 // dist/node/lib/provable/types/circuit-value.js
 var import_reflect_metadata = require("reflect-metadata");
@@ -12749,130 +12873,173 @@ function arrayProp(elementType, length) {
 }
 
 // dist/node/lib/provable/int.js
-init_comparison();
-init_assert();
-init_types();
-
-// dist/node/lib/provable/gadgets/bit-slices.js
-init_bigint_helpers();
-init_field2();
-init_exists();
-init_provable();
-
-// dist/node/lib/util/arrays.js
-init_errors();
-function chunk(array, size) {
-  assert2(array.length % size === 0, `chunk(): invalid input length, it must be a multiple of ${size}`);
-  return Array.from({ length: array.length / size }, (_, i) => array.slice(size * i, size * (i + 1)));
-}
-function chunkString(str, size) {
-  return chunk([...str], size).map((c) => c.join(""));
-}
-function zip(a2, b2) {
-  assert2(a2.length <= b2.length, "zip(): second array must be at least as long as the first array");
-  return a2.map((a3, i) => [a3, b2[i]]);
-}
-function pad(array, size, value) {
-  assert2(array.length <= size, `target size ${size} should be greater or equal than the length of the array ${array.length}`);
-  return array.concat(Array.from({ length: size - array.length }, () => value));
-}
-function mapObject(t, fn) {
-  let s = {};
-  let i = 0;
-  for (let key in t) {
-    s[key] = fn(t[key], key, i);
-    i++;
+init_wrapped();
+var UInt96 = class _UInt96 extends CircuitValue {
+  /** Create a {@link UInt96}. */
+  constructor(x) {
+    if (x instanceof _UInt96 || x instanceof UInt642 || x instanceof UInt322)
+      x = x.value.value;
+    let value = Field4(x);
+    super(value);
+    _UInt96.checkConstant(value);
   }
-  return s;
-}
-function mapToObject(keys, fn) {
-  let s = {};
-  keys.forEach((key, i) => {
-    s[key] = fn(key, i);
-  });
-  return s;
-}
-
-// dist/node/lib/provable/gadgets/bit-slices.js
-init_common();
-init_range_check();
-function bytesToWord(wordBytes) {
-  return wordBytes.reduce((acc, byte, idx) => {
-    const shift = 1n << BigInt(8 * idx);
-    return acc.add(byte.value.mul(shift));
-  }, Field3.from(0));
-}
-function wordToBytes(word, bytesPerWord = 8) {
-  let bytes = Provable.witness(Provable.Array(UInt8, bytesPerWord), () => {
-    let w = word.toBigInt();
-    return Array.from({ length: bytesPerWord }, (_, k) => UInt8.from(w >> BigInt(8 * k) & 0xffn));
-  });
-  bytesToWord(bytes).assertEquals(word);
-  return bytes;
-}
-function wordsToBytes(words, bytesPerWord = 8) {
-  return words.flatMap((w) => wordToBytes(w, bytesPerWord));
-}
-function bytesToWords(bytes, bytesPerWord = 8) {
-  return chunk(bytes, bytesPerWord).map(bytesToWord);
-}
-function sliceField3([x0, x1, x2], { maxBits, chunkSize }) {
-  let l_ = Number(l);
-  assert3(maxBits <= 3 * l_, `expected max bits <= 3*${l_}, got ${maxBits}`);
-  let result0 = sliceField(x0, Math.min(l_, maxBits), chunkSize);
-  if (maxBits <= l_)
-    return result0.chunks;
-  maxBits -= l_;
-  let result1 = sliceField(x1, Math.min(l_, maxBits), chunkSize, result0);
-  if (maxBits <= l_)
-    return result0.chunks.concat(result1.chunks);
-  maxBits -= l_;
-  let result2 = sliceField(x2, maxBits, chunkSize, result1);
-  return result0.chunks.concat(result1.chunks, result2.chunks);
-}
-function sliceField(x, maxBits, chunkSize, leftover) {
-  let bits = exists(maxBits, () => {
-    let bits2 = bigIntToBits(x.toBigInt());
-    if (bits2.length > maxBits)
-      bits2 = bits2.slice(0, maxBits);
-    if (bits2.length < maxBits)
-      bits2 = bits2.concat(Array(maxBits - bits2.length).fill(false));
-    return bits2.map(BigInt);
-  });
-  let chunks = [];
-  let sum2 = Field3.from(0n);
-  if (leftover !== void 0) {
-    let { chunks: previous, leftoverSize: size } = leftover;
-    let remainingChunk = Field3.from(0n);
-    for (let i2 = 0; i2 < size; i2++) {
-      let bit2 = bits[i2];
-      bit2.assertBool();
-      remainingChunk = remainingChunk.add(bit2.mul(1n << BigInt(i2)));
+  static get zero() {
+    return new _UInt96(0);
+  }
+  static get one() {
+    return new _UInt96(1);
+  }
+  toString() {
+    return this.value.toString();
+  }
+  toBigInt() {
+    return this.value.toBigInt();
+  }
+  toUInt64() {
+    let uint642 = new UInt642(this.value.value);
+    UInt642.check(uint642);
+    return uint642;
+  }
+  static check(x) {
+    rangeCheckN(_UInt96.NUM_BITS, x.value);
+  }
+  static toInput(x) {
+    return { packed: [[x.value, _UInt96.NUM_BITS]] };
+  }
+  static toJSON(x) {
+    return x.value.toString();
+  }
+  static fromJSON(x) {
+    return this.from(x);
+  }
+  static checkConstant(x) {
+    if (!x.isConstant())
+      return x;
+    let xBig = x.toBigInt();
+    if (xBig < 0n || xBig >= 1n << BigInt(this.NUM_BITS)) {
+      throw Error(`UInt96: Expected number between 0 and 2^96 - 1, got ${xBig}`);
     }
-    sum2 = remainingChunk = remainingChunk.seal();
-    let chunk2 = previous[previous.length - 1];
-    previous[previous.length - 1] = chunk2.add(remainingChunk.mul(1n << BigInt(chunkSize - size)));
+    return x;
   }
-  let i = leftover?.leftoverSize ?? 0;
-  for (; i < maxBits; i += chunkSize) {
-    let chunk2 = Field3.from(0n);
-    let size = Math.min(maxBits - i, chunkSize);
-    for (let j = 0; j < size; j++) {
-      let bit2 = bits[i + j];
-      bit2.assertBool();
-      chunk2 = chunk2.add(bit2.mul(1n << BigInt(j)));
+  static from(x) {
+    if (x instanceof _UInt96)
+      return x;
+    return new this(x);
+  }
+  static MAXINT() {
+    return new _UInt96((1n << 96n) - 1n);
+  }
+  divMod(y) {
+    let x = this.value;
+    let y_ = _UInt96.from(y).value;
+    if (x.isConstant() && y_.isConstant()) {
+      let xn = x.toBigInt();
+      let yn = y_.toBigInt();
+      let q4 = xn / yn;
+      let r2 = xn - q4 * yn;
+      return { quotient: new _UInt96(q4), rest: new _UInt96(r2) };
     }
-    chunk2 = chunk2.seal();
-    sum2 = sum2.add(chunk2.mul(1n << BigInt(i)));
-    chunks.push(chunk2);
+    y_ = y_.seal();
+    let q3 = Provable.witness(Field4, () => Field4(x.toBigInt() / y_.toBigInt()));
+    rangeCheckN(_UInt96.NUM_BITS, q3);
+    let r = x.sub(q3.mul(y_)).seal();
+    rangeCheckN(_UInt96.NUM_BITS, r);
+    let q_ = new _UInt96(q3.value);
+    let r_ = new _UInt96(r.value);
+    r_.assertLessThan(new _UInt96(y_.value));
+    return { quotient: q_, rest: r_ };
   }
-  sum2.assertEquals(x);
-  let leftoverSize = i - maxBits;
-  return { chunks, leftoverSize };
-}
-
-// dist/node/lib/provable/int.js
-init_field_bigint();
+  div(y) {
+    return this.divMod(y).quotient;
+  }
+  mod(y) {
+    return this.divMod(y).rest;
+  }
+  mul(y) {
+    let z = this.value.mul(_UInt96.from(y).value);
+    rangeCheckN(_UInt96.NUM_BITS, z);
+    return new _UInt96(z.value);
+  }
+  add(y) {
+    let z = this.value.add(_UInt96.from(y).value);
+    rangeCheckN(_UInt96.NUM_BITS, z);
+    return new _UInt96(z.value);
+  }
+  sub(y) {
+    let z = this.value.sub(_UInt96.from(y).value);
+    rangeCheckN(_UInt96.NUM_BITS, z);
+    return new _UInt96(z.value);
+  }
+  lessThanOrEqual(y) {
+    if (this.value.isConstant() && y.value.isConstant()) {
+      return Bool4(this.value.toBigInt() <= y.value.toBigInt());
+    }
+    return lessThanOrEqualGeneric(this.value, y.value, 1n << 96n, (v) => rangeCheckN(_UInt96.NUM_BITS, v));
+  }
+  assertLessThanOrEqual(y, message) {
+    if (this.value.isConstant() && y.value.isConstant()) {
+      let [x0, y0] = [this.value.toBigInt(), y.value.toBigInt()];
+      return assert(x0 <= y0, message ?? `UInt96.assertLessThanOrEqual: expected ${x0} <= ${y0}`);
+    }
+    assertLessThanOrEqualGeneric(this.value, y.value, (v) => rangeCheckN(_UInt96.NUM_BITS, v, message));
+  }
+  lessThan(y) {
+    if (this.value.isConstant() && y.value.isConstant()) {
+      return Bool4(this.value.toBigInt() < y.value.toBigInt());
+    }
+    return lessThanGeneric(this.value, y.value, 1n << 96n, (v) => rangeCheckN(_UInt96.NUM_BITS, v));
+  }
+  assertLessThan(y, message) {
+    if (this.value.isConstant() && y.value.isConstant()) {
+      let [x0, y0] = [this.value.toBigInt(), y.value.toBigInt()];
+      return assert(x0 < y0, message ?? `UInt96.assertLessThan: expected ${x0} < ${y0}`);
+    }
+    assertLessThanGeneric(this.value, y.value, (v) => rangeCheckN(_UInt96.NUM_BITS, v, message));
+  }
+  greaterThan(y) {
+    return y.lessThan(this);
+  }
+  assertGreaterThan(y, message) {
+    y.assertLessThan(this, message);
+  }
+  greaterThanOrEqual(y) {
+    return y.lessThanOrEqual(this);
+  }
+  assertGreaterThanOrEqual(y, message) {
+    y.assertLessThanOrEqual(this, message);
+  }
+  static toValue(x) {
+    return x.value.toBigInt();
+  }
+  static fromValue(x) {
+    return _UInt96.from(x);
+  }
+  toBits(length = _UInt96.NUM_BITS) {
+    checkBitLength("UInt96.toBits()", length, _UInt96.NUM_BITS);
+    if (this.isConstant()) {
+      let bits = BinableFp.toBits(this.toBigInt());
+      if (bits.slice(length).some((bit2) => bit2))
+        throw Error(`UInt96.toBits(): ${this} does not fit in ${length} bits`);
+      return bits.slice(0, length).map((b2) => new Bool4(b2));
+    }
+    return this.value.toBits(length);
+  }
+  static fromBits(bits) {
+    checkBitLength("UInt96.fromBits()", bits.length, _UInt96.NUM_BITS);
+    return _UInt96.Unsafe.fromField(Field4.fromBits(bits));
+  }
+};
+UInt96.NUM_BITS = 96;
+UInt96.Unsafe = {
+  /** Create a UInt96 from a Field without constraining its range. */
+  fromField(x) {
+    return new UInt96(x.value);
+  }
+};
+(0, import_tslib2.__decorate)([
+  prop,
+  (0, import_tslib2.__metadata)("design:type", Field4)
+], UInt96.prototype, "value", void 0);
 var UInt128 = class _UInt128 extends CircuitValue {
   /**
    * Create a {@link UInt128}.
@@ -40040,6 +40207,7 @@ Error.stackTraceLimit = 1e5;
   UInt32,
   UInt64,
   UInt8,
+  UInt96,
   Unconstrained,
   Undefined,
   VerificationKey,

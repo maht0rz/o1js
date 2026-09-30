@@ -39,7 +39,7 @@ export { Circuit, circuitMain, Keypair, public_ } from './lib/proof-system/circu
 export { DynamicArray } from './lib/provable/dynamic-array.js';
 export { Gadgets } from './lib/provable/gadgets/gadgets.js';
 export { RuntimeTable } from './lib/provable/gadgets/runtime-table.js';
-export { Int64, Sign, UInt32, UInt64, UInt128, UInt8 } from './lib/provable/int.js';
+export { Int64, Sign, UInt128, UInt32, UInt64, UInt8, UInt96 } from './lib/provable/int.js';
 export { Hashed, Packed } from './lib/provable/packed.js';
 export { Provable } from './lib/provable/provable.js';
 export { provable, provablePure } from './lib/provable/types/provable-derivers.js';
@@ -209,7 +209,7 @@ namespace Experimental {
    * - `root`: The root of the current Merkle tree
    * - `actionState`: The hash pointing to the list of actions that have been applied to form the current Merkle tree
    */
-  export class OffchainStateCommitments extends OffchainState_.OffchainStateCommitments { }
+  export class OffchainStateCommitments extends OffchainState_.OffchainStateCommitments {}
 
   // batch reducer
 
@@ -237,7 +237,7 @@ namespace Experimental {
     ActionType extends Actionable<any>,
     BatchSize extends number = number,
     Action = InferProvable<ActionType>,
-  > extends BatchReducer_.BatchReducer<ActionType, BatchSize, Action> { }
+  > extends BatchReducer_.BatchReducer<ActionType, BatchSize, Action> {}
 
   /**
    * Provable type that represents a batch of actions.

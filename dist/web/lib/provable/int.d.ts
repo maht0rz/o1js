@@ -1,13 +1,64 @@
-import { Field, Bool } from './wrapped.js';
-import { AnyConstructor } from './types/struct.js';
-import { Types } from '../../bindings/mina-transaction/v1/types.js';
 import * as TypesBigint from '../../bindings/mina-transaction/v1/transaction-leaves-bigint.js';
-import { HashInput } from './crypto/poseidon.js';
+import { Types } from '../../bindings/mina-transaction/v1/types.js';
 import { FieldVar } from './core/fieldvar.js';
+import { HashInput } from './crypto/poseidon.js';
 import { CircuitValue } from './types/circuit-value.js';
-export { UInt8, UInt32, UInt64, UInt128, Int64, Sign };
+import { AnyConstructor } from './types/struct.js';
+import { Bool, Field } from './wrapped.js';
+export { Int64, Sign, UInt128, UInt32, UInt64, UInt8, UInt96 };
+/**
+ * A 96 bit unsigned integer with values ranging from 0 to 79,228,162,514,264,337,593,543,950,335.
+ *
+ * Products of two UInt96 values are smaller than the native field modulus.
+ * This permits direct integer multiplication without field wraparound.
+ */
+declare class UInt96 extends CircuitValue {
+    value: Field;
+    static NUM_BITS: number;
+    /** Create a {@link UInt96}. */
+    constructor(x: UInt96 | UInt64 | UInt32 | FieldVar | number | string | bigint);
+    static Unsafe: {
+        /** Create a UInt96 from a Field without constraining its range. */
+        fromField(x: Field): UInt96;
+    };
+    static get zero(): UInt96;
+    static get one(): UInt96;
+    toString(): string;
+    toBigInt(): bigint;
+    toUInt64(): UInt64;
+    static check(x: UInt96): void;
+    static toInput(x: UInt96): HashInput;
+    static toJSON(x: UInt96): string;
+    static fromJSON<T extends AnyConstructor>(x: string): InstanceType<T>;
+    private static checkConstant;
+    static from(x: UInt96 | UInt64 | UInt32 | number | string | bigint): UInt96;
+    static MAXINT(): UInt96;
+    divMod(y: UInt96 | number | string): {
+        quotient: UInt96;
+        rest: UInt96;
+    };
+    div(y: UInt96 | number): UInt96;
+    mod(y: UInt96 | number): UInt96;
+    mul(y: UInt96 | number): UInt96;
+    add(y: UInt96 | number): UInt96;
+    sub(y: UInt96 | number): UInt96;
+    lessThanOrEqual(y: UInt96): import("./bool.js").Bool;
+    assertLessThanOrEqual(y: UInt96, message?: string): void;
+    lessThan(y: UInt96): import("./bool.js").Bool;
+    assertLessThan(y: UInt96, message?: string): void;
+    greaterThan(y: UInt96): import("./bool.js").Bool;
+    assertGreaterThan(y: UInt96, message?: string): void;
+    greaterThanOrEqual(y: UInt96): import("./bool.js").Bool;
+    assertGreaterThanOrEqual(y: UInt96, message?: string): void;
+    static toValue(x: UInt96): bigint;
+    static fromValue<T extends AnyConstructor>(x: number | bigint | UInt96): InstanceType<T>;
+    toBits(length?: number): import("./bool.js").Bool[];
+    static fromBits(bits: (Bool | boolean)[]): UInt96;
+}
 /**
  * A 128 bit unsigned integer with values ranging from 0 to 340,282,366,920,938,463,463,374,607,431,768,211,455.
+ *
+ * @deprecated Use UInt96 when 96 bits are sufficient. UInt128 remains available for compatibility.
  */
 declare class UInt128 extends CircuitValue {
     value: Field;
